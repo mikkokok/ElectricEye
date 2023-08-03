@@ -35,7 +35,7 @@ namespace ElectricEye.Helpers.Impl
             };
         }
 
-        public async Task<List<ElectricityPrice>> GetCurrentElectricityPrices(int ago = 0, DateTime date = new DateTime())
+        public async Task<List<ElectricityPrice>> GetElectricityPrices(int ago = 0, string date = "")
         {
             var uriBuilder = new UriBuilder(_falconUrl)
             {
@@ -43,14 +43,15 @@ namespace ElectricEye.Helpers.Impl
                 Port = 443
             };
             var query = HttpUtility.ParseQueryString(uriBuilder.Query);
-            if (ago != 0)
+            if (!string.IsNullOrEmpty(date))
+            {
+                query["date"] = date;
+            }
+            else if (string.IsNullOrEmpty(date))
             {
                 query["ago"] = ago.ToString();
             }
-            if (date.Year != 0001)
-            {
-                query["date"] = date.ToString();
-            }
+
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 

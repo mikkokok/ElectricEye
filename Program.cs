@@ -7,17 +7,18 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var apiPoller = new ApiPoller(builder.Configuration);
-builder.Services.AddSingleton<IApiPoller>(apiPoller);
 var falconConsumer = new FalconConsumer(builder.Configuration);
 builder.Services.AddSingleton<IFalconConsumer>(falconConsumer);
+var apiPoller = new ApiPoller(builder.Configuration, falconConsumer);
+builder.Services.AddSingleton<IApiPoller>(apiPoller);
+
 
 var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ElectricEye API");
     options.RoutePrefix = string.Empty;
 });
 
