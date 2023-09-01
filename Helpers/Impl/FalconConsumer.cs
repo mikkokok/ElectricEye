@@ -52,6 +52,7 @@ namespace ElectricEye.Helpers.Impl
                 query["ago"] = ago.ToString();
             }
 
+            uriBuilder.Query = query.ToString();
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -61,7 +62,7 @@ namespace ElectricEye.Helpers.Impl
                 response.EnsureSuccessStatusCode();
                 var responseContent = await response.Content.ReadAsStringAsync();
                 var prices = JsonSerializer.Deserialize<List<ElectricityPrice>>(responseContent);
-                return prices == null ? throw new Exception("Something funky happened") : prices;
+                return prices ?? throw new Exception("Something funky happened");
             }
             catch (Exception e)
             {

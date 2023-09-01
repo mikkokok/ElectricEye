@@ -2,9 +2,9 @@
 {
     public class ElectricityPrice
     {
-        public string Date { get; set; }
+        public string date { get; set; }
 
-        public string Price { get; set; }
-        public int Hour { get; set; }
+        public string price { get; set; }
+        public int hour { get; set; }
     }
 }

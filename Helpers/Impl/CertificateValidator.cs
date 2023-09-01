@@ -17,12 +17,7 @@ namespace ElectricEye.Helpers.Impl
         public bool ValidateCertificate(HttpRequestMessage request, X509Certificate2 certificate, X509Chain certificateChain, SslPolicyErrors policy)
         {
             var certificate2 = new X509Certificate2(certificate);
-            if (certificate2.Thumbprint != null && certificate2.Thumbprint.Equals(_trustedThumbprint, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return false;
+            return certificate2.Thumbprint?.Equals(_trustedThumbprint, StringComparison.OrdinalIgnoreCase) == true;
         }
     }
 }

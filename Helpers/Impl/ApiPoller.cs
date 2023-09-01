@@ -9,15 +9,16 @@ namespace ElectricEye.Helpers.Impl
     {
         private readonly IConfiguration _config;
         public bool IsRunning { get; set; }
-        private readonly int _desiredPollingHour = 3;
+        private readonly int _desiredPollingHour = 15;
         private readonly HttpClient _httpClient;
         private readonly NumberFormatInfo nfi = new CultureInfo("en-US", false).NumberFormat;
         public List<ElectricityPrice> CurrentPrices { get; private set; }
         public List<ElectricityPrice> TomorrowPrices { get; private set; }
 
         private readonly FalconConsumer _falconConsumer;
+        private readonly TelegramBotConsumer _telegramConsumer;
 
-        public ApiPoller(IConfiguration config, FalconConsumer falconConsumer)
+        public ApiPoller(IConfiguration config, FalconConsumer falconConsumer, TelegramBotConsumer telegramConsumer)
         {
             _config = config;
             IsRunning = true;
@@ -25,6 +26,7 @@ namespace ElectricEye.Helpers.Impl
             CurrentPrices = new List<ElectricityPrice>();
             TomorrowPrices = new List<ElectricityPrice>();
             _falconConsumer = falconConsumer;
+            _telegramConsumer = telegramConsumer;
             _ = InitializePrices();
             Task.Run(() => StartPolling());
         }
@@ -49,15 +51,24 @@ namespace ElectricEye.Helpers.Impl
         }
         private async Task InitializePrices()
         {
-            var tempCurrent = await _falconConsumer.GetElectricityPrices(0);
+            List<ElectricityPrice> tempCurrent = await _falconConsumer.GetElectricityPrices(0);
             if (tempCurrent.Count == 0)
             {
                 await UpdateTodayPrices();
             }
-
-            var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":"));
+            if(CurrentPrices.Count == 0)
+            {
+                CurrentPrices = tempCurrent;
+            }
+            string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
+            var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, tomorrowDate);
             if (tempTomorrow.Count == 0) { 
                 await UpdateTomorrowPrices();
+            }
+            if(TomorrowPrices.Count == 0)
+            {
+                TomorrowPrices = tempTomorrow;
+                CheckForHighPrice(TomorrowPrices);
             }
         }
 
@@ -74,6 +85,7 @@ namespace ElectricEye.Helpers.Impl
             {
                 var pricesdto = await CollectPrices(_config["TomorrowSpotAPI"]);
                 TomorrowPrices = MapDTOPrices(pricesdto);
+                CheckForHighPrice(TomorrowPrices);
             }
             catch (Exception ex)
             {
@@ -105,12 +117,25 @@ namespace ElectricEye.Helpers.Impl
             {
                 PricesList.Add(new ElectricityPrice
                 {
-                    Date = price.DateTime.Date.ToString("yyyy-MM-dd").Replace(".", ":"),
-                    Price = price.PriceWithTax.ToString(nfi),
-                    Hour = price.DateTime.Hour
+                    date = price.DateTime.ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
+                    price = price.PriceWithTax.ToString(nfi),
+                    hour = price.DateTime.Hour
                 });
             }
             return PricesList;
+        }
+        private void CheckForHighPrice(List<ElectricityPrice> prices)
+        {
+            foreach(var price in prices)
+            {
+                double.TryParse(price.price, out double result);
+                if ( result > 0.1)
+                {
+                    _ = _telegramConsumer.SendTelegramMessage("ElectricEye", false, prices);
+                    break;
+                }
+            }
+
         }
     }
 }

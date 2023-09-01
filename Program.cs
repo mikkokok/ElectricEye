@@ -8,8 +8,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var falconConsumer = new FalconConsumer(builder.Configuration);
+var telegramConsumer = new TelegramBotConsumer(builder.Configuration);
 builder.Services.AddSingleton<IFalconConsumer>(falconConsumer);
-var apiPoller = new ApiPoller(builder.Configuration, falconConsumer);
+builder.Services.AddSingleton<ITelegramBotConsumer>(telegramConsumer);
+var apiPoller = new ApiPoller(builder.Configuration, falconConsumer, telegramConsumer);
 builder.Services.AddSingleton<IApiPoller>(apiPoller);
 
 
