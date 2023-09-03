@@ -13,6 +13,8 @@ builder.Services.AddSingleton<IFalconConsumer>(falconConsumer);
 builder.Services.AddSingleton<ITelegramBotConsumer>(telegramConsumer);
 var apiPoller = new ApiPoller(builder.Configuration, falconConsumer, telegramConsumer);
 builder.Services.AddSingleton<IApiPoller>(apiPoller);
+var chargePoller = new ChargerPoller(builder.Configuration, falconConsumer);
+builder.Services.AddSingleton<IChargerPoller>(chargePoller);
 
 
 var app = builder.Build();

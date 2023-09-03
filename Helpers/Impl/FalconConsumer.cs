@@ -98,5 +98,33 @@ namespace ElectricEye.Helpers.Impl
                 throw;
             }
         }
+
+        public async Task SendChargingData(CarCharge charge)
+        {
+            var uriBuilder = new UriBuilder(_falconUrl)
+            {
+                Scheme = Uri.UriSchemeHttps,
+                Port = 443
+            };
+            var query = HttpUtility.ParseQueryString(uriBuilder.Query);
+            query["authKey"] = _falconKey;
+            uriBuilder.Query = query.ToString() ?? throw new Exception("Empty URL built");
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, uriBuilder.Uri);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var json = JsonSerializer.Serialize(charge);
+            request.Content = new StringContent(json, Encoding.UTF8);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            try
+            {
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
     }
 }
