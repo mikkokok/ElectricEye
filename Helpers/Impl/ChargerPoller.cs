@@ -18,6 +18,7 @@ namespace ElectricEye.Helpers.Impl
         private int _lastReading;
         private bool _retry;
         private readonly FalconConsumer _falconConsumer;
+        private bool _initialPoll = true;
 
 
         public ChargerPoller(IConfiguration config, FalconConsumer falconConsumer)
@@ -25,6 +26,10 @@ namespace ElectricEye.Helpers.Impl
             _falconConsumer = falconConsumer;
             _config = config;
             _pollingUrl = _config["ChargerUrl"];
+            _httpClient = new HttpClient()
+            {
+                Timeout = new TimeSpan(0, 0, 30)
+            };
             _ = StartCollectors();
         }
 
@@ -69,18 +74,26 @@ namespace ElectricEye.Helpers.Impl
                 response.EnsureSuccessStatusCode();
                 var responseContent = await response.Content.ReadAsStringAsync();
                 var reading = JsonSerializer.Deserialize<ChargerDTO>(responseContent);
-                if (reading == null || reading.eto > _lastReading || reading.eto == 0) {
-                    throw new Exception($"Could not get reasonable values from {_pollingUrl}, value being {reading?.eto}");
+                if (!_initialPoll)
+                {
+                    if (reading == null || reading.eto < _lastReading || reading.eto == 0)
+                    {
+                        throw new Exception($"Could not get reasonable values from {_pollingUrl}, value being {reading?.eto}");
+                    }
+
                 }
-                if (_lastReading < reading.eto)
+
+                if (_lastReading < reading.eto && !_initialPoll)
                 {
                     InvokeFalcon(new CarCharge
                     {
-                        Date = DateTime.Now.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
-                        Charged = ConvertWhTokWh(reading.eto).ToString(),
-                        Hour = DateTime.Now.AddHours(-1).Hour
+                        date = DateTime.Now.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
+                        charged = CalculateDifferenceAndCovert(reading.eto).ToString(),
+                        hour = DateTime.Now.AddHours(-1).Hour
                     });
                 }
+                _lastReading = reading.eto;
+                _initialPoll = false;
                                 
             }
             catch (Exception ex)
@@ -112,9 +125,10 @@ namespace ElectricEye.Helpers.Impl
             _ = Task.Run(async () => await _falconConsumer.SendChargingData(chargeData));
         }
 
-        private static float ConvertWhTokWh(int total)
+        private float CalculateDifferenceAndCovert(int total)
         {
-            return total / 1000;
+            float consumed = total - _lastReading;
+            return consumed / 1000;
         }
     }
 }

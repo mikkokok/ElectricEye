@@ -2,9 +2,9 @@
 {
     public class CarCharge
     {
-        public string Date { get; set; }
+        public string date { get; set; }
 
-        public string Charged { get; set; }
-        public int Hour { get; set; }
+        public string charged { get; set; }
+        public int hour { get; set; }
     }
 }

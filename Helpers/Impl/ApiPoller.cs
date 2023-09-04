@@ -131,7 +131,7 @@ namespace ElectricEye.Helpers.Impl
                 double.TryParse(price.price, out double result);
                 if ( result > 0.1)
                 {
-                    _ = _telegramConsumer.SendTelegramMessage("ElectricEye", false, prices);
+                    _ = _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices);
                     break;
                 }
             }

@@ -101,7 +101,7 @@ namespace ElectricEye.Helpers.Impl
 
         public async Task SendChargingData(CarCharge charge)
         {
-            var uriBuilder = new UriBuilder(_falconUrl)
+            var uriBuilder = new UriBuilder(_config["RestlessFalcon:chargingUrl"])
             {
                 Scheme = Uri.UriSchemeHttps,
                 Port = 443
