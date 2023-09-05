@@ -16,7 +16,7 @@ namespace ElectricEye.Helpers.Impl
         private string _pollingUrl;
         private int _lastHour;
         private int _lastReading;
-        private bool _retry;
+        private bool _retry = true;
         private readonly FalconConsumer _falconConsumer;
         private bool _initialPoll = true;
 
@@ -112,12 +112,12 @@ namespace ElectricEye.Helpers.Impl
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Polling Shelly device failed from url {url}, errormessage {ex.Message}, retrying");
+                Console.WriteLine($"Charger polling from url {url}, errormessage {ex.Message}, retrying");
                 if (_retry)
                     await QueryCharger(url);
-                Console.WriteLine($"Polling Shelly device failed from url {url}, errormessage {ex.Message}, failing");
+                Console.WriteLine($"Charger polling from url {url}, errormessage {ex.Message}, failing");
             }
-            throw new Exception($"Polling Shelly device failed from url {url}, failing");
+            throw new Exception($"Charger polling from url {url}, failing");
 
         }
         private void InvokeFalcon(CarCharge chargeData)
