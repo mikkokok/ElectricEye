@@ -17,6 +17,8 @@ namespace ElectricEye.Helpers.Impl
 
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
+        private DateTime _todaysDate;
+        private bool _pricesSent = false;
 
         public ApiPoller(IConfiguration config, FalconConsumer falconConsumer, TelegramBotConsumer telegramConsumer)
         {
@@ -35,6 +37,7 @@ namespace ElectricEye.Helpers.Impl
         {
             while (IsRunning)
             {
+                UpdateToday();
                 if (_desiredPollingHour == DateTime.Now.Hour)
                 {
                     await UpdatePrices();
@@ -56,26 +59,18 @@ namespace ElectricEye.Helpers.Impl
             {
                 await UpdateTodayPrices();
             }
-            if(CurrentPrices.Count == 0)
-            {
-                CurrentPrices = tempCurrent;
-            }
+
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
             var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, tomorrowDate);
-            if (tempTomorrow.Count == 0) { 
+            if (tempTomorrow.Count == 0) {
                 await UpdateTomorrowPrices();
-            }
-            if(TomorrowPrices.Count == 0)
-            {
-                TomorrowPrices = tempTomorrow;
-                CheckForHighPrice(TomorrowPrices);
             }
         }
 
         private async Task UpdateTodayPrices()
         {
             var pricesdto = await CollectPrices(_config["TodaySpotAPI"]);
-            CurrentPrices = MapDTOPrices(pricesdto);
+            CurrentPrices = MapDTOPrices(pricesdto!);
             _ = _falconConsumer.SendElectricityPrices(CurrentPrices);
         }
 
@@ -84,8 +79,13 @@ namespace ElectricEye.Helpers.Impl
             try
             {
                 var pricesdto = await CollectPrices(_config["TomorrowSpotAPI"]);
-                TomorrowPrices = MapDTOPrices(pricesdto);
-                CheckForHighPrice(TomorrowPrices);
+                TomorrowPrices = MapDTOPrices(pricesdto!);
+                if (!_pricesSent)
+                {
+                    CheckForHighPrice(TomorrowPrices);
+                    _pricesSent = true;
+                }
+                
             }
             catch (Exception ex)
             {
@@ -128,12 +128,22 @@ namespace ElectricEye.Helpers.Impl
         {
             foreach(var price in prices)
             {
-                double.TryParse(price.price, out double result);
+                _ = double.TryParse(price.price, out double result);
                 if ( result > 0.1)
                 {
                     _ = _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices);
                     break;
                 }
+            }
+
+        }
+
+        private void UpdateToday()
+        {
+            if (_todaysDate != DateTime.Today.Date)
+            {
+                _todaysDate = DateTime.Today.Date;
+                _pricesSent = false;
             }
 
         }

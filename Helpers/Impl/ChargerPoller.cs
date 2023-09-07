@@ -16,7 +16,6 @@ namespace ElectricEye.Helpers.Impl
         private string _pollingUrl;
         private int _lastHour;
         private int _lastReading;
-        private bool _retry = true;
         private readonly FalconConsumer _falconConsumer;
         private bool _initialPoll = true;
 
@@ -100,25 +99,6 @@ namespace ElectricEye.Helpers.Impl
             {
                 Console.WriteLine($"Charger polling {_pollingUrl} failed, errormessage {ex.Message}, continuing");
             }
-        }
-        private async Task<JsonObject> QueryCharger(string url)
-        {
-            try
-            {
-                HttpResponseMessage response = await _httpClient.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-                var responseContent = await response.Content.ReadAsStringAsync();
-                return JsonNode.Parse(responseContent).AsObject();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Charger polling from url {url}, errormessage {ex.Message}, retrying");
-                if (_retry)
-                    await QueryCharger(url);
-                Console.WriteLine($"Charger polling from url {url}, errormessage {ex.Message}, failing");
-            }
-            throw new Exception($"Charger polling from url {url}, failing");
-
         }
         private void InvokeFalcon(CarCharge chargeData)
         {
