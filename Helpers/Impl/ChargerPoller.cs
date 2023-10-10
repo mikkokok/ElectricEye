@@ -41,7 +41,7 @@ namespace ElectricEye.Helpers.Impl
                 {
                     await ChargerCollector();
                 }
-                Thread.Sleep(TimeSpan.FromSeconds(30));
+                await Task.Delay(TimeSpan.FromSeconds(30));
             }
             _polling = false;
         }

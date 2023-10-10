@@ -1,7 +1,6 @@
 ﻿using ElectricEye.Models;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace ElectricEye.Helpers.Impl
 {
@@ -35,14 +34,16 @@ namespace ElectricEye.Helpers.Impl
 
         private async Task StartPolling()
         {
+            await UpdatePrices();
             while (IsRunning)
             {
-                UpdateToday();
+
                 if (_desiredPollingHour == DateTime.Now.Hour)
                 {
+                    UpdateToday();
                     await UpdatePrices();
                 }
-                Thread.Sleep(TimeSpan.FromMinutes(30));
+                await Task.Delay(TimeSpan.FromMinutes(30));
             }
             IsRunning = false;
         }
@@ -62,7 +63,8 @@ namespace ElectricEye.Helpers.Impl
 
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
             var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, tomorrowDate);
-            if (tempTomorrow.Count == 0) {
+            if (tempTomorrow.Count == 0)
+            {
                 await UpdateTomorrowPrices();
             }
         }
@@ -71,7 +73,7 @@ namespace ElectricEye.Helpers.Impl
         {
             var pricesdto = await CollectPrices(_config["TodaySpotAPI"]);
             CurrentPrices = MapDTOPrices(pricesdto!);
-            _ = _falconConsumer.SendElectricityPrices(CurrentPrices);
+            _ = Task.Run(async () => await _falconConsumer.SendElectricityPrices(CurrentPrices));
         }
 
         private async Task UpdateTomorrowPrices()
@@ -85,7 +87,8 @@ namespace ElectricEye.Helpers.Impl
                     CheckForHighPrice(TomorrowPrices);
                     _pricesSent = true;
                 }
-                
+                _ = Task.Run(async () => await _falconConsumer.SendElectricityPrices(TomorrowPrices));
+
             }
             catch (Exception ex)
             {
@@ -126,18 +129,18 @@ namespace ElectricEye.Helpers.Impl
         }
         private void CheckForHighPrice(List<ElectricityPrice> prices)
         {
-            foreach(var price in prices)
+
+            foreach (var price in prices)
             {
                 _ = double.TryParse(price.price, out double result);
-                if ( result > 0.1)
+                if (result > 0.1)
                 {
-                    _ = _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices);
+                    _ = Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
                     break;
                 }
             }
 
         }
-
         private void UpdateToday()
         {
             if (_todaysDate != DateTime.Today.Date)
