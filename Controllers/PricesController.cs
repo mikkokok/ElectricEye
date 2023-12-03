@@ -11,7 +11,6 @@ namespace ElectricEye.Controllers
     {
         private readonly IApiPoller poller;
 
-
         public PricesController(IApiPoller apiPoller)
         {
             poller = apiPoller;

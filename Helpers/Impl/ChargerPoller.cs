@@ -12,12 +12,12 @@ namespace ElectricEye.Helpers.Impl
         private readonly IConfiguration _config;
         public bool IsRunning { get; set; }
         private readonly HttpClient _httpClient;
-        private bool _polling = false;
         private string _pollingUrl;
         private int _lastHour;
         private int _lastReading;
         private readonly FalconConsumer _falconConsumer;
         private bool _initialPoll = true;
+        private string _latestException;
 
 
         public ChargerPoller(IConfiguration config, FalconConsumer falconConsumer)
@@ -25,25 +25,42 @@ namespace ElectricEye.Helpers.Impl
             _falconConsumer = falconConsumer;
             _config = config;
             _pollingUrl = _config["ChargerUrl"];
+            _latestException = "No exceptions :)";
             _httpClient = new HttpClient()
             {
                 Timeout = new TimeSpan(0, 0, 30)
             };
             _ = StartCollectors();
         }
+        public PollerStatus GetStatus()
+        {
+            return new PollerStatus
+            {
+                Poller = "ChargerPoller",
+                Status = IsRunning,
+                StatusReason = _latestException
+            };
+        }
 
         private async Task StartCollectors()
         {
-            _polling = true;
-            while (_polling)
+            IsRunning = true;
+            while (IsRunning)
             {
-                if (CalculateExactHour())
+                try
                 {
-                    await ChargerCollector();
+                    if (CalculateExactHour())
+                    {
+                        await ChargerCollector();
+                    }
+                    await Task.Delay(TimeSpan.FromSeconds(30));
                 }
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                catch (Exception ex)
+                {
+                    _latestException = ex.Message;
+                }
             }
-            _polling = false;
+            IsRunning = false;
         }
         private bool CalculateExactHour()
         {

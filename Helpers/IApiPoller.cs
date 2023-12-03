@@ -7,5 +7,6 @@ namespace ElectricEye.Helpers
         List<ElectricityPrice> CurrentPrices { get; }
         List<ElectricityPrice> TomorrowPrices { get; }
         bool IsRunning { get; set; }
+        PollerStatus GetStatus();
     }
 }

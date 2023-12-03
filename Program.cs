@@ -16,7 +16,6 @@ builder.Services.AddSingleton<IApiPoller>(apiPoller);
 var chargePoller = new ChargerPoller(builder.Configuration, falconConsumer);
 builder.Services.AddSingleton<IChargerPoller>(chargePoller);
 
-
 var app = builder.Build();
 
 app.UseSwagger();

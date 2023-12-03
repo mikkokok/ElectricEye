@@ -18,6 +18,7 @@ namespace ElectricEye.Helpers.Impl
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
         private bool _pricesSent = false;
+        private string _latestException;
 
         public ApiPoller(IConfiguration config, FalconConsumer falconConsumer, TelegramBotConsumer telegramConsumer)
         {
@@ -28,8 +29,19 @@ namespace ElectricEye.Helpers.Impl
             TomorrowPrices = new List<ElectricityPrice>();
             _falconConsumer = falconConsumer;
             _telegramConsumer = telegramConsumer;
+            _latestException = "No exceptions :)";
             _ = InitializePrices();
             Task.Run(() => StartPolling());
+        }
+
+        public PollerStatus GetStatus()
+        {
+            return new PollerStatus
+            {
+                Poller = "ApiPoller",
+                Status = IsRunning,
+                StatusReason = _latestException
+            };
         }
 
         private async Task StartPolling()
@@ -37,13 +49,19 @@ namespace ElectricEye.Helpers.Impl
             await UpdatePrices();
             while (IsRunning)
             {
-
-                if (_desiredPollingHour == DateTime.Now.Hour)
+                try
                 {
-                    UpdateToday();
-                    await UpdatePrices();
+                    if (_desiredPollingHour == DateTime.Now.Hour)
+                    {
+                        UpdateToday();
+                        await UpdatePrices();
+                    }
+                    await Task.Delay(TimeSpan.FromMinutes(30));
                 }
-                await Task.Delay(TimeSpan.FromMinutes(30));
+                catch (Exception ex)
+                {
+                    _latestException = ex.Message;
+                }
             }
             IsRunning = false;
         }
