@@ -5,6 +5,6 @@ namespace ElectricEye.Helpers
     public interface IChargerPoller
     {
         bool IsRunning { get; set; }
-        PollerStatus GetStatus();
+        List<PollerStatus> PollerUpdates { get; }
     }
 }

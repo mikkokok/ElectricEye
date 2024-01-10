@@ -10,6 +10,7 @@ namespace ElectricEye.Helpers.Impl
         public bool IsRunning { get; set; }
         private readonly int _desiredPollingHour = 15;
         private readonly HttpClient _httpClient;
+        private const string _pollerName = "ApiPoller";
         private readonly NumberFormatInfo nfi = new CultureInfo("en-US", false).NumberFormat;
         public List<ElectricityPrice> CurrentPrices { get; private set; }
         public List<ElectricityPrice> TomorrowPrices { get; private set; }
@@ -17,8 +18,9 @@ namespace ElectricEye.Helpers.Impl
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
-        private bool _pricesSent = false;
-        private string _latestException;
+        private bool _pricesSent = true;
+        public List<PollerStatus> PollerUpdates { get; private set; }
+
 
         public ApiPoller(IConfiguration config, FalconConsumer falconConsumer, TelegramBotConsumer telegramConsumer)
         {
@@ -29,19 +31,10 @@ namespace ElectricEye.Helpers.Impl
             TomorrowPrices = new List<ElectricityPrice>();
             _falconConsumer = falconConsumer;
             _telegramConsumer = telegramConsumer;
-            _latestException = "No exceptions :)";
+            PollerUpdates = new List<PollerStatus>();
             _ = InitializePrices();
-            Task.Run(() => StartPolling());
-        }
-
-        public PollerStatus GetStatus()
-        {
-            return new PollerStatus
-            {
-                Poller = "ApiPoller",
-                Status = IsRunning,
-                StatusReason = _latestException
-            };
+            Task.Run(CleanUpdatesList);
+            Task.Run(StartPolling);
         }
 
         private async Task StartPolling()
@@ -60,7 +53,13 @@ namespace ElectricEye.Helpers.Impl
                 }
                 catch (Exception ex)
                 {
-                    _latestException = ex.Message;
+                    PollerUpdates.Add(new PollerStatus
+                    {
+                        Time = DateTime.Now,
+                        Poller = _pollerName,
+                        Status = false,
+                        StatusReason = ex.Message
+                    });
                 }
             }
             IsRunning = false;
@@ -91,44 +90,43 @@ namespace ElectricEye.Helpers.Impl
         {
             var pricesdto = await CollectPrices(_config["TodaySpotAPI"]);
             CurrentPrices = MapDTOPrices(pricesdto!);
-            _ = Task.Run(async () => await _falconConsumer.SendElectricityPrices(CurrentPrices));
+            await _falconConsumer.SendElectricityPrices(CurrentPrices);
+            PollerUpdates.Add(new PollerStatus
+            {
+                Time = DateTime.Now,
+                Poller = _pollerName,
+                Status = true,
+                StatusReason = $"Got {CurrentPrices.Count} currentprices"
+            });
         }
 
         private async Task UpdateTomorrowPrices()
         {
-            try
+            var pricesdto = await CollectPrices(_config["TomorrowSpotAPI"]);
+            TomorrowPrices = MapDTOPrices(pricesdto!);
+            if (!_pricesSent)
             {
-                var pricesdto = await CollectPrices(_config["TomorrowSpotAPI"]);
-                TomorrowPrices = MapDTOPrices(pricesdto!);
-                if (!_pricesSent)
-                {
-                    CheckForHighPrice(TomorrowPrices);
-                    _pricesSent = true;
-                }
-                _ = Task.Run(async () => await _falconConsumer.SendElectricityPrices(TomorrowPrices));
-
+                CheckForHighPrice(TomorrowPrices);
+                _pricesSent = true;
             }
-            catch (Exception ex)
+            await _falconConsumer.SendElectricityPrices(TomorrowPrices);
+            PollerUpdates.Add(new PollerStatus
             {
-                Console.WriteLine(ex.ToString());
-            }
+                Time = DateTime.Now,
+                Poller = _pollerName,
+                Status = true,
+                StatusReason = $"Got {TomorrowPrices.Count} tomorrowprices"
+            });
         }
 
 
         private async Task<List<ElectricityPriceDTO>?> CollectPrices(string url)
         {
-            try
-            {
-                HttpResponseMessage response = await _httpClient.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-                var responseContent = await response.Content.ReadAsStringAsync();
-                var prices = JsonSerializer.Deserialize<List<ElectricityPriceDTO>>(responseContent);
-                return prices;
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            HttpResponseMessage response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var prices = JsonSerializer.Deserialize<List<ElectricityPriceDTO>>(responseContent);
+            return prices;
         }
 
         private List<ElectricityPrice> MapDTOPrices(List<ElectricityPriceDTO> DTOPRices)
@@ -147,17 +145,15 @@ namespace ElectricEye.Helpers.Impl
         }
         private void CheckForHighPrice(List<ElectricityPrice> prices)
         {
-
             foreach (var price in prices)
             {
                 _ = double.TryParse(price.price, out double result);
                 if (result > 0.1)
                 {
-                    _ = Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
+                    Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
                     break;
                 }
             }
-
         }
         private void UpdateToday()
         {
@@ -166,7 +162,18 @@ namespace ElectricEye.Helpers.Impl
                 _todaysDate = DateTime.Today.Date;
                 _pricesSent = false;
             }
+        }
 
+        private async Task CleanUpdatesList()
+        {
+            while (true)
+            {
+                if (DateTime.Now.Day % 2 == 0 && DateTime.Now.Hour == 21)
+                {
+                    PollerUpdates.Clear();
+                }
+                await Task.Delay(TimeSpan.FromMinutes(45));
+            }
         }
     }
 }

@@ -1,8 +1,6 @@
 ﻿using ElectricEye.Models;
-using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Web;
 
 namespace ElectricEye.Helpers.Impl
@@ -11,35 +9,26 @@ namespace ElectricEye.Helpers.Impl
     {
         private readonly IConfiguration _config;
         public bool IsRunning { get; set; }
+        private const string _pollerName = "ApiPoller";
         private readonly HttpClient _httpClient;
         private string _pollingUrl;
         private int _lastHour;
         private int _lastReading;
         private readonly FalconConsumer _falconConsumer;
         private bool _initialPoll = true;
-        private string _latestException;
-
+        public List<PollerStatus> PollerUpdates { get; private set; }
 
         public ChargerPoller(IConfiguration config, FalconConsumer falconConsumer)
         {
             _falconConsumer = falconConsumer;
             _config = config;
             _pollingUrl = _config["ChargerUrl"];
-            _latestException = "No exceptions :)";
             _httpClient = new HttpClient()
             {
                 Timeout = new TimeSpan(0, 0, 30)
             };
-            _ = StartCollectors();
-        }
-        public PollerStatus GetStatus()
-        {
-            return new PollerStatus
-            {
-                Poller = "ChargerPoller",
-                Status = IsRunning,
-                StatusReason = _latestException
-            };
+            PollerUpdates = new List<PollerStatus>();
+            Task.Run(StartCollectors);
         }
 
         private async Task StartCollectors()
@@ -51,13 +40,41 @@ namespace ElectricEye.Helpers.Impl
                 {
                     if (CalculateExactHour())
                     {
-                        await ChargerCollector();
+                        for (int i = 1; i < 3; i++)
+                        {
+                            try
+                            {
+                                await ChargerCollector();
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                PollerUpdates.Add(new PollerStatus
+                                {
+                                    Time = DateTime.Now,
+                                    Poller = _pollerName,
+                                    Status = false,
+                                    StatusReason = $"Charger polling {_pollingUrl} failed, errormessage {ex.Message}, continuing with {i}/3 retries"
+                                });
+                                if (i == 3)
+                                {
+                                    throw;
+                                }
+                                await Task.Delay(TimeSpan.FromSeconds(30));
+                            }
+                        }
                     }
                     await Task.Delay(TimeSpan.FromSeconds(30));
                 }
                 catch (Exception ex)
                 {
-                    _latestException = ex.Message;
+                    PollerUpdates.Add(new PollerStatus
+                    {
+                        Time = DateTime.Now,
+                        Poller = _pollerName,
+                        Status = false,
+                        StatusReason = ex.Message
+                    });
                 }
             }
             IsRunning = false;
@@ -84,44 +101,48 @@ namespace ElectricEye.Helpers.Impl
             uriBuilder.Query = query.ToString();
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            try
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var reading = JsonSerializer.Deserialize<ChargerDTO>(responseContent);
+
+            if (reading == null)
             {
-                var response = await _httpClient.SendAsync(request);
-                response.EnsureSuccessStatusCode();
-                var responseContent = await response.Content.ReadAsStringAsync();
-                var reading = JsonSerializer.Deserialize<ChargerDTO>(responseContent);
-                if (!_initialPoll)
-                {
-                    if (reading == null || reading.eto < _lastReading || reading.eto == 0)
-                    {
-                        throw new Exception($"Could not get reasonable values from {_pollingUrl}, value being {reading?.eto}");
-                    }
-
-                }
-
-                if (_lastReading < reading.eto && !_initialPoll)
-                {
-                    InvokeFalcon(new CarCharge
-                    {
-                        date = DateTime.Now.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
-                        charged = CalculateDifferenceAndCovert(reading.eto).ToString(),
-                        hour = DateTime.Now.AddHours(-1).Hour
-                    });
-                }
-                _lastReading = reading.eto;
-                _initialPoll = false;
-                                
+                throw new Exception($"Could not get reasonable values from {_pollingUrl}, reading was null");
             }
-            catch (Exception ex)
+
+            if (!_initialPoll)
             {
-                Console.WriteLine($"Charger polling {_pollingUrl} failed, errormessage {ex.Message}, continuing");
+                if (reading.eto < _lastReading || reading.eto == 0)
+                {
+                    throw new Exception($"Could not get reasonable values from {_pollingUrl}, value being {reading?.eto}");
+                }
             }
-        }
-        private void InvokeFalcon(CarCharge chargeData)
-        {
-            _ = Task.Run(async () => await _falconConsumer.SendChargingData(chargeData));
-        }
 
+            if (_lastReading < reading.eto && !_initialPoll)
+            {
+                DateTime now = DateTime.Now;
+                DateTime rounded = new(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0);
+                await _falconConsumer.SendChargingData(new CarCharge
+                {
+                    date = rounded.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
+                    charged = CalculateDifferenceAndCovert(reading.eto).ToString(),
+                    hour = DateTime.Now.AddHours(-1).Hour
+                });
+            }
+
+            PollerUpdates.Add(new PollerStatus
+            {
+                Time = DateTime.Now,
+                Poller = _pollerName,
+                Status = true,
+                StatusReason = $"Successfully got data {reading.eto} from charger initial poll value being {_initialPoll}"
+            });
+
+            _lastReading = reading.eto;
+            _initialPoll = false;
+        }
         private float CalculateDifferenceAndCovert(int total)
         {
             float consumed = total - _lastReading;
