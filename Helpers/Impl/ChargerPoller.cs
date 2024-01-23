@@ -9,7 +9,7 @@ namespace ElectricEye.Helpers.Impl
     {
         private readonly IConfiguration _config;
         public bool IsRunning { get; set; }
-        private const string _pollerName = "ApiPoller";
+        private const string _pollerName = "ChargerPoller";
         private readonly HttpClient _httpClient;
         private string _pollingUrl;
         private int _lastHour;
@@ -123,7 +123,7 @@ namespace ElectricEye.Helpers.Impl
             if (_lastReading < reading.eto && !_initialPoll)
             {
                 DateTime now = DateTime.Now;
-                DateTime rounded = new(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0);
+                DateTime rounded = new(now.Year, now.Month, now.Day, now.Hour, 0, 0);
                 await _falconConsumer.SendChargingData(new CarCharge
                 {
                     date = rounded.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),

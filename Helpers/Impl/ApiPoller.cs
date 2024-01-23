@@ -14,7 +14,6 @@ namespace ElectricEye.Helpers.Impl
         private readonly NumberFormatInfo nfi = new CultureInfo("en-US", false).NumberFormat;
         public List<ElectricityPrice> CurrentPrices { get; private set; }
         public List<ElectricityPrice> TomorrowPrices { get; private set; }
-
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
@@ -42,6 +41,13 @@ namespace ElectricEye.Helpers.Impl
             await UpdatePrices();
             while (IsRunning)
             {
+                PollerUpdates.Add(new PollerStatus
+                {
+                    Time = DateTime.Now,
+                    Poller = _pollerName,
+                    Status = true,
+                    StatusReason = "Running in the while loop"
+                });
                 try
                 {
                     if (_desiredPollingHour == DateTime.Now.Hour)
