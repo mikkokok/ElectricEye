@@ -7,14 +7,11 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var falconConsumer = new FalconConsumer(builder.Configuration);
-var telegramConsumer = new TelegramBotConsumer(builder.Configuration);
-builder.Services.AddSingleton<IFalconConsumer>(falconConsumer);
-builder.Services.AddSingleton<ITelegramBotConsumer>(telegramConsumer);
-var apiPoller = new ApiPoller(builder.Configuration, falconConsumer, telegramConsumer);
-builder.Services.AddSingleton<IApiPoller>(apiPoller);
-var chargePoller = new ChargerPoller(builder.Configuration, falconConsumer);
-builder.Services.AddSingleton<IChargerPoller>(chargePoller);
+builder.Services.AddScoped<IApiPoller, ApiPoller>();
+builder.Services.AddHostedService<ApiPoller>();
+
+builder.Services.AddScoped<IChargerPoller, ChargerPoller>();
+builder.Services.AddHostedService<ChargerPoller>();
 
 var app = builder.Build();
 

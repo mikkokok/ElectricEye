@@ -19,7 +19,7 @@ namespace ElectricEye.Controllers
         [HttpGet]
         public IEnumerable<PollerStatus> GetStatus()
         {
-            return _poller.PollerUpdates.Concat(_chargerPoller.PollerUpdates);
+            return _poller.GetStatus().Concat(_chargerPoller.GetStatus());
         }
     }
 }

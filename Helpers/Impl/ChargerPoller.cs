@@ -5,7 +5,7 @@ using System.Web;
 
 namespace ElectricEye.Helpers.Impl
 {
-    public class ChargerPoller : IChargerPoller
+    public class ChargerPoller : BackgroundService, IChargerPoller
     {
         private readonly IConfiguration _config;
         public bool IsRunning { get; set; }
@@ -16,19 +16,28 @@ namespace ElectricEye.Helpers.Impl
         private int _lastReading;
         private readonly FalconConsumer _falconConsumer;
         private bool _initialPoll = true;
-        public List<PollerStatus> PollerUpdates { get; private set; }
+        private static List<PollerStatus> _pollerUpdates = new();
 
-        public ChargerPoller(IConfiguration config, FalconConsumer falconConsumer)
+        public ChargerPoller(IConfiguration config)
         {
-            _falconConsumer = falconConsumer;
             _config = config;
+            _falconConsumer = new FalconConsumer(_config);
             _pollingUrl = _config["ChargerUrl"];
             _httpClient = new HttpClient()
             {
                 Timeout = new TimeSpan(0, 0, 30)
             };
-            PollerUpdates = new List<PollerStatus>();
-            Task.Run(StartCollectors);
+        }
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            var CleaningTask = CleanUpdatesList();
+            var CollectorTask = StartCollectors();
+            await Task.WhenAll(CleaningTask, CollectorTask);
+        }
+
+        public List<PollerStatus> GetStatus()
+        {
+            return _pollerUpdates;
         }
 
         private async Task StartCollectors()
@@ -49,7 +58,7 @@ namespace ElectricEye.Helpers.Impl
                             }
                             catch (Exception ex)
                             {
-                                PollerUpdates.Add(new PollerStatus
+                                _pollerUpdates.Add(new PollerStatus
                                 {
                                     Time = DateTime.Now,
                                     Poller = _pollerName,
@@ -58,7 +67,7 @@ namespace ElectricEye.Helpers.Impl
                                 });
                                 if (i == 3)
                                 {
-                                    throw;
+                                    throw new Exception("Retries done, exiting");
                                 }
                                 await Task.Delay(TimeSpan.FromSeconds(30));
                             }
@@ -68,7 +77,7 @@ namespace ElectricEye.Helpers.Impl
                 }
                 catch (Exception ex)
                 {
-                    PollerUpdates.Add(new PollerStatus
+                    _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
                         Poller = _pollerName,
@@ -132,7 +141,7 @@ namespace ElectricEye.Helpers.Impl
                 });
             }
 
-            PollerUpdates.Add(new PollerStatus
+            _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
                 Poller = _pollerName,
@@ -147,6 +156,18 @@ namespace ElectricEye.Helpers.Impl
         {
             float consumed = total - _lastReading;
             return consumed / 1000;
+        }
+
+        private async Task CleanUpdatesList()
+        {
+            while (true)
+            {
+                if (DateTime.Now.Day % 4 == 0 && DateTime.Now.Hour == 23)
+                {
+                    _pollerUpdates.Clear();
+                }
+                await Task.Delay(TimeSpan.FromMinutes(45));
+            }
         }
     }
 }
