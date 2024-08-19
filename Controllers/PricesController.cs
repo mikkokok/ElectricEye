@@ -20,9 +20,9 @@ namespace ElectricEye.Controllers
         {
             if (current)
             {
-                return poller.CurrentPrices;
+                return poller.GetCurrentPrices();
             }
-            return poller.TomorrowPrices;
+            return poller.GetTomorrowPrices();
             
         }
     }

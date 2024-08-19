@@ -12,8 +12,8 @@ namespace ElectricEye.Helpers.Impl
         private readonly HttpClient _httpClient;
         private const string _pollerName = "ApiPoller";
         private readonly NumberFormatInfo nfi = new CultureInfo("en-US", false).NumberFormat;
-        public List<ElectricityPrice> CurrentPrices { get; private set; }
-        public List<ElectricityPrice> TomorrowPrices { get; private set; }
+        private static List<ElectricityPrice>? CurrentPrices { get; set; }
+        private static List<ElectricityPrice>? TomorrowPrices { get; set; }
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
@@ -26,8 +26,6 @@ namespace ElectricEye.Helpers.Impl
             _config = config;
             IsRunning = true;
             _httpClient = new HttpClient();
-            CurrentPrices = new List<ElectricityPrice>();
-            TomorrowPrices = new List<ElectricityPrice>();
             _falconConsumer = new FalconConsumer(_config);
             _telegramConsumer = new TelegramBotConsumer(_config);
         }
@@ -35,6 +33,20 @@ namespace ElectricEye.Helpers.Impl
         public List<PollerStatus> GetStatus()
         {
             return _pollerUpdates;
+        }
+
+        public List<ElectricityPrice> GetCurrentPrices()
+        {
+            if (CurrentPrices != null)
+                return CurrentPrices;
+            return new List<ElectricityPrice>();
+        }
+
+        public List<ElectricityPrice> GetTomorrowPrices()
+        {
+            if (TomorrowPrices != null)
+                return TomorrowPrices;
+            return new List<ElectricityPrice>();
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -57,6 +69,13 @@ namespace ElectricEye.Helpers.Impl
             var CleaningTask = CleanUpdatesList();
             var PollingTask = StartPolling();
             await Task.WhenAll(CleaningTask, PollingTask);
+            _pollerUpdates.Add(new PollerStatus
+            {
+                Time = DateTime.Now,
+                Poller = _pollerName,
+                Status = false,
+                StatusReason = $"Tasks completed"
+            });
         }
 
         private async Task StartPolling()
@@ -105,12 +124,20 @@ namespace ElectricEye.Helpers.Impl
             {
                 await UpdateTodayPrices();
             }
+            else
+            {
+                CurrentPrices = tempCurrent;
+            }
 
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
             var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, tomorrowDate);
             if (tempTomorrow.Count == 0)
             {
                 await UpdateTomorrowPrices();
+            }
+            else
+            {
+                TomorrowPrices = tempTomorrow;
             }
         }
 
@@ -201,15 +228,22 @@ namespace ElectricEye.Helpers.Impl
             }
         }
 
-        private async Task CleanUpdatesList()
+        private static async Task CleanUpdatesList()
         {
             while (true)
             {
-                if (DateTime.Now.Day == 28 && DateTime.Now.Hour == 23)
+                try
                 {
-                    _pollerUpdates.Clear();
+                    if (DateTime.Now.Day == 28 && DateTime.Now.Hour == 23)
+                    {
+                        _pollerUpdates.Clear();
+                    }
+                    await Task.Delay(TimeSpan.FromMinutes(45));
                 }
-                await Task.Delay(TimeSpan.FromMinutes(45));
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
     }
