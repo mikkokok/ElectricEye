@@ -55,11 +55,19 @@ namespace ElectricEye.Helpers.Impl
             uriBuilder.Query = query.ToString();
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var prices = JsonSerializer.Deserialize<List<ElectricityPrice>>(responseContent);
-            return prices ?? throw new Exception("Something funky happened");
+            try
+            {
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                var responseContent = await response.Content.ReadAsStringAsync();
+                var prices = JsonSerializer.Deserialize<List<ElectricityPrice>>(responseContent);
+                return prices ?? throw new Exception("Something funky happened");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message.ToString());
+                throw;
+            }
         }
 
         public async Task SendElectricityPrices(List<ElectricityPrice> prices)
@@ -78,10 +86,15 @@ namespace ElectricEye.Helpers.Impl
             var json = JsonSerializer.Serialize(prices);
             request.Content = new StringContent(json, Encoding.UTF8);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-
+            try
+            {
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message.ToString());
+            }
         }
 
         public async Task SendChargingData(CarCharge charge)
@@ -100,9 +113,15 @@ namespace ElectricEye.Helpers.Impl
             var json = JsonSerializer.Serialize(charge);
             request.Content = new StringContent(json, Encoding.UTF8);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+            try
+            {
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message.ToString());
+            }
         }
     }
 }

@@ -32,7 +32,20 @@ namespace ElectricEye.Helpers.Impl
         {
             var CleaningTask = CleanUpdatesList();
             var CollectorTask = StartCollectors();
-            await Task.WhenAll(CleaningTask, CollectorTask);
+            try
+            {
+                await Task.WhenAll(CleaningTask, CollectorTask);
+            }
+            catch (Exception ex)
+            {
+                _pollerUpdates.Add(new PollerStatus
+                {
+                    Time = DateTime.Now,
+                    Poller = _pollerName,
+                    Status = false,
+                    StatusReason = ex.Message
+                });
+            }
         }
 
         public List<PollerStatus> GetStatus()
@@ -65,7 +78,7 @@ namespace ElectricEye.Helpers.Impl
                                     Status = false,
                                     StatusReason = $"Charger polling {_pollingUrl} failed, errormessage {ex.Message}, continuing with {i}/3 retries"
                                 });
-                                if (i == 3)
+                                if (i >= 3)
                                 {
                                     throw new Exception("Retries done, exiting");
                                 }
@@ -158,15 +171,22 @@ namespace ElectricEye.Helpers.Impl
             return consumed / 1000;
         }
 
-        private async Task CleanUpdatesList()
+        private static async Task CleanUpdatesList()
         {
             while (true)
             {
-                if (DateTime.Now.Day % 4 == 0 && DateTime.Now.Hour == 23)
+                try
                 {
-                    _pollerUpdates.Clear();
+                    if (DateTime.Now.Day == 28 && DateTime.Now.Hour == 23)
+                    {
+                        _pollerUpdates.Clear();
+                    }
+                    await Task.Delay(TimeSpan.FromMinutes(45));
                 }
-                await Task.Delay(TimeSpan.FromMinutes(45));
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
     }

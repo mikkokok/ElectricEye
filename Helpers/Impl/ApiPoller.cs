@@ -17,7 +17,7 @@ namespace ElectricEye.Helpers.Impl
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
-        private bool _pricesSent = true;
+        private bool _pricesSent = false;
         private static List<PollerStatus> _pollerUpdates = new();
 
 
@@ -68,7 +68,21 @@ namespace ElectricEye.Helpers.Impl
 
             var CleaningTask = CleanUpdatesList();
             var PollingTask = StartPolling();
-            await Task.WhenAll(CleaningTask, PollingTask);
+            try
+            {
+                await Task.WhenAll(CleaningTask, PollingTask);
+            }
+            catch (Exception ex)
+            {
+                _pollerUpdates.Add(new PollerStatus
+                {
+                    Time = DateTime.Now,
+                    Poller = _pollerName,
+                    Status = false,
+                    StatusReason = $"All failed, {ex.Message}"
+                });
+            }
+
             _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
@@ -94,7 +108,11 @@ namespace ElectricEye.Helpers.Impl
                     if (_desiredPollingHour == DateTime.Now.Hour)
                     {
                         UpdateToday();
-                        await UpdatePrices();
+                        if (_pricesSent == false)
+                        {
+                            await UpdatePrices();
+                        }
+                        _pricesSent = true;
                     }
                     await Task.Delay(TimeSpan.FromMinutes(30));
                 }
@@ -105,7 +123,7 @@ namespace ElectricEye.Helpers.Impl
                         Time = DateTime.Now,
                         Poller = _pollerName,
                         Status = false,
-                        StatusReason = ex.Message
+                        StatusReason = ex.Message ?? ex.StackTrace ?? ex.ToString()
                     });
                 }
             }
@@ -161,7 +179,7 @@ namespace ElectricEye.Helpers.Impl
             TomorrowPrices = MapDTOPrices(pricesdto!);
             if (!_pricesSent)
             {
-                CheckForHighPrice(TomorrowPrices);
+                await CheckForHighPriceAsync(TomorrowPrices);
                 _pricesSent = true;
             }
             await _falconConsumer.SendElectricityPrices(TomorrowPrices);
@@ -198,17 +216,17 @@ namespace ElectricEye.Helpers.Impl
             }
             return PricesList;
         }
-        private void CheckForHighPrice(List<ElectricityPrice> prices)
+        private async Task CheckForHighPriceAsync(List<ElectricityPrice> prices)
         {
             foreach (var price in prices)
             {
                 _ = double.TryParse(price.price, out double result);
                 if (result > 0.1)
                 {
-                    var task = Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
                     try
                     {
-                        task.Wait();
+                        var task = Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
+                        await task;
                     }
                     catch (Exception ex)
                     {
