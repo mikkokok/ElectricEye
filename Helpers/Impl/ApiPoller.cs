@@ -17,8 +17,8 @@ namespace ElectricEye.Helpers.Impl
         private readonly FalconConsumer _falconConsumer;
         private readonly TelegramBotConsumer _telegramConsumer;
         private DateTime _todaysDate;
-        private bool _pricesSent = false;
-        private static List<PollerStatus> _pollerUpdates = new();
+        private bool _pricesSent = true;
+        private static readonly List<PollerStatus> _pollerUpdates = [];
 
 
         public ApiPoller(IConfiguration config)
@@ -39,24 +39,25 @@ namespace ElectricEye.Helpers.Impl
         {
             if (CurrentPrices != null)
                 return CurrentPrices;
-            return new List<ElectricityPrice>();
+            return [];
         }
 
         public List<ElectricityPrice> GetTomorrowPrices()
         {
             if (TomorrowPrices != null)
                 return TomorrowPrices;
-            return new List<ElectricityPrice>();
+            return [];
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-
+            Console.WriteLine("ExecuteAsync starting");
             try
             {
                 await InitializePrices();
             }
             catch (Exception ex)
             {
+                Console.WriteLine("Initialization failed", ex.Message);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
@@ -64,6 +65,7 @@ namespace ElectricEye.Helpers.Impl
                     Status = false,
                     StatusReason = $"Initialization failed, {ex.Message}"
                 });
+                
             }
 
             var CleaningTask = CleanUpdatesList();
@@ -74,6 +76,7 @@ namespace ElectricEye.Helpers.Impl
             }
             catch (Exception ex)
             {
+                Console.WriteLine("All failed", ex.Message);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
@@ -81,21 +84,27 @@ namespace ElectricEye.Helpers.Impl
                     Status = false,
                     StatusReason = $"All failed, {ex.Message}"
                 });
+                
             }
+            
 
             _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
                 Poller = _pollerName,
                 Status = false,
-                StatusReason = $"Tasks completed"
+                StatusReason = "Tasks completed"
             });
+            Console.WriteLine("Tasks completed");
+            Console.WriteLine("ExecuteAsync ending", stoppingToken.ToString());
+
         }
 
         private async Task StartPolling()
         {
             while (IsRunning)
             {
+                Console.WriteLine("Running in the while loop", DateTime.Now);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
@@ -118,6 +127,7 @@ namespace ElectricEye.Helpers.Impl
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine("Update failed", ex.ToString());
                     _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
@@ -223,16 +233,7 @@ namespace ElectricEye.Helpers.Impl
                 _ = double.TryParse(price.price, out double result);
                 if (result > 0.1)
                 {
-                    try
-                    {
-                        var task = Task.Run(async () => await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices));
-                        await task;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                        throw;
-                    }
+                    await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices);
                     break;
                 }
             }

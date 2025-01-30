@@ -81,7 +81,7 @@ namespace ElectricEye.Helpers.Impl
             query["authKey"] = _falconKey;
             uriBuilder.Query = query.ToString() ?? throw new Exception("Empty URL built");
 
-            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, uriBuilder.Uri);
+            using HttpRequestMessage request = new(HttpMethod.Post, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             var json = JsonSerializer.Serialize(prices);
             request.Content = new StringContent(json, Encoding.UTF8);
@@ -93,7 +93,7 @@ namespace ElectricEye.Helpers.Impl
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message.ToString());
+                Console.WriteLine(ex.ToString());
             }
         }
 
