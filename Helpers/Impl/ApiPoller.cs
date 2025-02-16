@@ -86,7 +86,6 @@ namespace ElectricEye.Helpers.Impl
                 });
                 
             }
-            
 
             _pollerUpdates.Add(new PollerStatus
             {

@@ -7,10 +7,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddScoped<IApiPoller, ApiPoller>();
 builder.Services.AddHostedService<ApiPoller>();
-
-builder.Services.AddScoped<IChargerPoller, ChargerPoller>();
 builder.Services.AddHostedService<ChargerPoller>();
 
 var app = builder.Build();
