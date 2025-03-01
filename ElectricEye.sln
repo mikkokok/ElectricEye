@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.5.33414.496
+VisualStudioVersion = 17.13.35818.85 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElectricEye", "ElectricEye.csproj", "{D6745FA8-4D3E-4038-88F2-EFFE4346A97B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElectricEye", "ElectricEye.csproj", "{09310E97-1C5D-42A3-BA8A-F3F23FD43CD1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D6745FA8-4D3E-4038-88F2-EFFE4346A97B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D6745FA8-4D3E-4038-88F2-EFFE4346A97B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D6745FA8-4D3E-4038-88F2-EFFE4346A97B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D6745FA8-4D3E-4038-88F2-EFFE4346A97B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09310E97-1C5D-42A3-BA8A-F3F23FD43CD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09310E97-1C5D-42A3-BA8A-F3F23FD43CD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09310E97-1C5D-42A3-BA8A-F3F23FD43CD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09310E97-1C5D-42A3-BA8A-F3F23FD43CD1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {F18FC6FD-C9F1-4871-A389-F9FCEDEFC60A}
+		SolutionGuid = {70170DE4-9DD0-4F12-B634-3792157175C5}
 	EndGlobalSection
 EndGlobal

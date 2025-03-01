@@ -1,32 +1,36 @@
-﻿using System.Net.Http.Headers;
+﻿using ElectricEye.Models;
+using System.Net.Http.Headers;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text;
 using System.Web;
-using ElectricEye.Models;
 
-namespace ElectricEye.Helpers.Impl
+namespace ElectricEye.Services.Clients
 {
-    public class TelegramBotConsumer : ITelegramBotConsumer
+    public sealed class RozalinaClient
     {
+        private readonly string _serviceName = "";
+        private readonly ILogger<RozalinaClient> _logger;
         private readonly IConfiguration _config;
-        private string _telegramUrl;
-        private string _telegramKey;
-        private HttpClient _httpClient;
+        private readonly string _telegramUrl;
+        private readonly string _telegramKey;
+        private HttpClient? _httpClient;
 
-        public TelegramBotConsumer(IConfiguration config)
+        public RozalinaClient(IConfiguration config, ILogger<RozalinaClient> logger)
         {
+            _serviceName = nameof(RozalinaClient);
+            _logger = logger;
             _config = config;
-            InitializeTelegramBotConsumer();
+            _telegramUrl = _config["TelegramAPI:url"] ?? throw new Exception($"{_serviceName} initialisation failed due to TelegramAPI:url config being null");
+            _telegramKey = _config["TelegramAPI:key"] ?? throw new Exception($"{_serviceName} initialisation failed due to TelegramAPI:key config being null");
         }
-
-        private void InitializeTelegramBotConsumer()
+        private HttpClient GetHttpClient()
         {
-            _telegramUrl = _config["TelegramAPI:url"];
-            _telegramKey = _config["TelegramAPI:key"];
-            _httpClient = new HttpClient()
+            _httpClient ??= new HttpClient()
             {
                 Timeout = new TimeSpan(0, 0, 30)
             };
+            return _httpClient;
         }
 
         public async Task SendTelegramMessage(string from, bool admin, List<ElectricityPrice> electricityPrices)
@@ -55,16 +59,11 @@ namespace ElectricEye.Helpers.Impl
             var json = JsonSerializer.Serialize(_telegramKey);
             request.Content = new StringContent(json, Encoding.UTF8);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            try
-            {
-                var response = await _httpClient.SendAsync(request);
-                response.EnsureSuccessStatusCode();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
-                throw;
-            }
+            _logger.LogInformation($"{_serviceName}:: SendTelegramMessage starting to send new data");
+            var httpClient = GetHttpClient();
+            var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            _logger.LogInformation($"{_serviceName}:: SendTelegramMessage successfully sent new data");
         }
     }
 }

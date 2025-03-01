@@ -1,113 +1,94 @@
 ﻿using ElectricEye.Models;
+using ElectricEye.Services.Clients;
 using System.Globalization;
-using System.Text.Json;
 
-namespace ElectricEye.Helpers.Impl
+namespace ElectricEye.Services
 {
-    public class ApiPoller : BackgroundService, IApiPoller
+    public sealed class PriceService
     {
-        private readonly IConfiguration _config;
-        public bool IsRunning { get; set; }
-        private readonly int _desiredPollingHour = 15;
-        private readonly HttpClient _httpClient;
-        private const string _pollerName = "ApiPoller";
+        private readonly string _serviceName = "";
+        private readonly ILogger<PriceService> _logger;
+        private readonly RozalinaClient _rozalinaClient;
+        private readonly PricesClient _pricesClient;
+        private readonly FalconClient _falconClient;
         private readonly NumberFormatInfo nfi = new CultureInfo("en-US", false).NumberFormat;
-        private static List<ElectricityPrice>? CurrentPrices { get; set; }
-        private static List<ElectricityPrice>? TomorrowPrices { get; set; }
-        private readonly FalconConsumer _falconConsumer;
-        private readonly TelegramBotConsumer _telegramConsumer;
+        private List<PollerStatus> _pollerUpdates = [];
         private DateTime _todaysDate;
         private bool _pricesSent = true;
-        private static readonly List<PollerStatus> _pollerUpdates = [];
+        private readonly int _desiredPollingHour = 14;
+        public List<ElectricityPrice> CurrentPrices { get; private set; } = [];
+        public List<ElectricityPrice> TomorrowPrices { get; private set; } = [];
 
-
-        public ApiPoller(IConfiguration config)
+        public PriceService(ILogger<PriceService> logger, RozalinaClient rozalinaClient, PricesClient pricesClient, FalconClient falconClient)
         {
-            _config = config;
-            IsRunning = true;
-            _httpClient = new HttpClient();
-            _falconConsumer = new FalconConsumer(_config);
-            _telegramConsumer = new TelegramBotConsumer(_config);
+            _serviceName = nameof(PriceService);
+            _logger = logger;
+            _rozalinaClient = rozalinaClient;
+            _pricesClient = pricesClient;
+            _falconClient = falconClient;
         }
-
         public List<PollerStatus> GetStatus()
         {
             return _pollerUpdates;
         }
-
-        public List<ElectricityPrice> GetCurrentPrices()
+        public async Task RunPoller(CancellationToken stoppingToken)
         {
-            if (CurrentPrices != null)
-                return CurrentPrices;
-            return [];
-        }
-
-        public List<ElectricityPrice> GetTomorrowPrices()
-        {
-            if (TomorrowPrices != null)
-                return TomorrowPrices;
-            return [];
-        }
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            Console.WriteLine("ExecuteAsync starting");
+            _logger.LogInformation($"{_serviceName}:: starting price polling");
             try
             {
                 await InitializePrices();
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Initialization failed", ex.Message);
+                _logger.LogInformation($"{_serviceName}:: initialization failed", ex.Message);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
-                    Poller = _pollerName,
+                    Poller = _serviceName,
                     Status = false,
                     StatusReason = $"Initialization failed, {ex.Message}"
                 });
-                
+
             }
 
             var CleaningTask = CleanUpdatesList();
-            var PollingTask = StartPolling();
+            var PollingTask = StartPolling(stoppingToken);
             try
             {
                 await Task.WhenAll(CleaningTask, PollingTask);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("All failed", ex.Message);
+                _logger.LogInformation($"{_serviceName}:: all failed", ex.Message);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
-                    Poller = _pollerName,
+                    Poller = _serviceName,
                     Status = false,
                     StatusReason = $"All failed, {ex.Message}"
                 });
-                
             }
 
             _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
-                Poller = _pollerName,
+                Poller = _serviceName,
                 Status = false,
                 StatusReason = "Tasks completed"
             });
-            Console.WriteLine("Tasks completed");
-            Console.WriteLine("ExecuteAsync ending", stoppingToken.ToString());
-
+            _logger.LogInformation($"{_serviceName}:: tasks completed");
+            _logger.LogInformation($"{_serviceName}:: ending", stoppingToken.ToString());
         }
 
-        private async Task StartPolling()
+        private async Task StartPolling(CancellationToken stoppingToken)
         {
-            while (IsRunning)
+            while (!stoppingToken.IsCancellationRequested)
             {
-                Console.WriteLine("Running in the while loop", DateTime.Now);
+                _logger.LogInformation($"{_serviceName} running in the while loop", DateTime.Now);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
-                    Poller = _pollerName,
+                    Poller = _serviceName,
                     Status = true,
                     StatusReason = "Running in the while loop"
                 });
@@ -122,21 +103,20 @@ namespace ElectricEye.Helpers.Impl
                         }
                         _pricesSent = true;
                     }
-                    await Task.Delay(TimeSpan.FromMinutes(30));
+                    await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Update failed", ex.ToString());
+                    _logger.LogInformation($"{_serviceName} update failed", ex.ToString());
                     _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
-                        Poller = _pollerName,
+                        Poller = _serviceName,
                         Status = false,
                         StatusReason = ex.Message ?? ex.StackTrace ?? ex.ToString()
                     });
                 }
             }
-            IsRunning = false;
         }
 
         private async Task UpdatePrices()
@@ -146,7 +126,8 @@ namespace ElectricEye.Helpers.Impl
         }
         private async Task InitializePrices()
         {
-            List<ElectricityPrice> tempCurrent = await _falconConsumer.GetElectricityPrices(0);
+            _logger.LogInformation($"{_serviceName}:: start to initialize prices");
+            List<ElectricityPrice> tempCurrent = await _falconClient.GetElectricityPrices(0);
             if (tempCurrent.Count == 0)
             {
                 await UpdateTodayPrices();
@@ -157,7 +138,7 @@ namespace ElectricEye.Helpers.Impl
             }
 
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
-            var tempTomorrow = await _falconConsumer.GetElectricityPrices(0, tomorrowDate);
+            var tempTomorrow = await _falconClient.GetElectricityPrices(0, tomorrowDate);
             if (tempTomorrow.Count == 0)
             {
                 await UpdateTomorrowPrices();
@@ -166,49 +147,42 @@ namespace ElectricEye.Helpers.Impl
             {
                 TomorrowPrices = tempTomorrow;
             }
+            _logger.LogInformation($"{_serviceName}:: price init completed");
         }
 
         private async Task UpdateTodayPrices()
         {
-            var pricesdto = await CollectPrices(_config["TodaySpotAPI"]);
+            var pricesdto = await _pricesClient.CollectTodayPrices();
             CurrentPrices = MapDTOPrices(pricesdto!);
-            await _falconConsumer.SendElectricityPrices(CurrentPrices);
+            await _falconClient.SendElectricityPrices(CurrentPrices);
             _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
-                Poller = _pollerName,
+                Poller = _serviceName,
                 Status = true,
                 StatusReason = $"Got {CurrentPrices.Count} currentprices"
             });
+            _logger.LogInformation($"{_serviceName}:: today prices updated with {CurrentPrices.Count} amount");
         }
 
         private async Task UpdateTomorrowPrices()
         {
-            var pricesdto = await CollectPrices(_config["TomorrowSpotAPI"]);
+            var pricesdto = await _pricesClient.CollectTomorrowPrices();
             TomorrowPrices = MapDTOPrices(pricesdto!);
             if (!_pricesSent)
             {
                 await CheckForHighPriceAsync(TomorrowPrices);
                 _pricesSent = true;
             }
-            await _falconConsumer.SendElectricityPrices(TomorrowPrices);
+            await _falconClient.SendElectricityPrices(TomorrowPrices);
             _pollerUpdates.Add(new PollerStatus
             {
                 Time = DateTime.Now,
-                Poller = _pollerName,
+                Poller = _serviceName,
                 Status = true,
                 StatusReason = $"Got {TomorrowPrices.Count} tomorrowprices"
             });
-        }
-
-
-        private async Task<List<ElectricityPriceDTO>?> CollectPrices(string url)
-        {
-            HttpResponseMessage response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var prices = JsonSerializer.Deserialize<List<ElectricityPriceDTO>>(responseContent);
-            return prices;
+            _logger.LogInformation($"{_serviceName}:: tomorrow prices updated with {TomorrowPrices.Count} amount");
         }
 
         private List<ElectricityPrice> MapDTOPrices(List<ElectricityPriceDTO> DTOPRices)
@@ -232,7 +206,7 @@ namespace ElectricEye.Helpers.Impl
                 _ = double.TryParse(price.price, out double result);
                 if (result > 0.1)
                 {
-                    await _telegramConsumer.SendTelegramMessage("ElectricEye", true, prices);
+                    await _rozalinaClient.SendTelegramMessage("ElectricEye", true, prices);
                     break;
                 }
             }
@@ -243,10 +217,10 @@ namespace ElectricEye.Helpers.Impl
             {
                 _todaysDate = DateTime.Today.Date;
                 _pricesSent = false;
+                _logger.LogInformation($"{_serviceName}:: updated date to {_todaysDate}");
             }
         }
-
-        private static async Task CleanUpdatesList()
+        private async Task CleanUpdatesList()
         {
             while (true)
             {
@@ -255,12 +229,13 @@ namespace ElectricEye.Helpers.Impl
                     if (DateTime.Now.Day == 28 && DateTime.Now.Hour == 23)
                     {
                         _pollerUpdates.Clear();
+                        _logger.LogInformation($"{_serviceName}:: cleaned updates list");
                     }
                     await Task.Delay(TimeSpan.FromMinutes(45));
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    _logger.LogInformation($"{_serviceName}:: cleaning updates list failed", ex.Message);
                 }
             }
         }

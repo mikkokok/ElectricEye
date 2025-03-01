@@ -1,9 +1,9 @@
 ﻿using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 
-namespace ElectricEye.Helpers.Impl
+namespace ElectricEye.Helpers
 {
-    public class CertificateValidator : ICertificateValidator
+    public class CertificateValidator
     {
         private IConfiguration _config;
         private readonly string _trustedThumbprint;
@@ -11,7 +11,7 @@ namespace ElectricEye.Helpers.Impl
         public CertificateValidator(IConfiguration config)
         {
             _config = config;
-            _trustedThumbprint = _config["RestlessFalcon:sslThumbprint"];
+            _trustedThumbprint = _config["RestlessFalcon:sslThumbprint"] ?? throw new Exception($"CertificateValidator initialisation failed due to RestlessFalcon:sslThumbprint config being null"); ;
         }
 
         public bool ValidateCertificate(HttpRequestMessage request, X509Certificate2 certificate, X509Chain certificateChain, SslPolicyErrors policy)
