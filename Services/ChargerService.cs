@@ -33,7 +33,8 @@ namespace ElectricEye.Services
         public async Task RunPoller(CancellationToken stoppingToken)
         {
             _logger.LogInformation($"{_serviceName}:: starting charger polling");
-            await CleanUpdatesList();
+            Task cleanTask = CleanUpdatesList(stoppingToken);
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -69,6 +70,7 @@ namespace ElectricEye.Services
                         }
                     }
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    _logger.LogInformation($"{_serviceName}:: cleaningTask status: {cleanTask.IsFaulted} ");
                 }
                 catch (Exception ex)
                 {
@@ -137,9 +139,9 @@ namespace ElectricEye.Services
             return consumed / 1000;
         }
 
-        private async Task CleanUpdatesList()
+        private async Task CleanUpdatesList(CancellationToken stoppingToken)
         {
-            while (true)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
@@ -147,7 +149,7 @@ namespace ElectricEye.Services
                     {
                         _pollerUpdates.Clear();
                     }
-                    await Task.Delay(TimeSpan.FromMinutes(45));
+                    await Task.Delay(TimeSpan.FromMinutes(45), stoppingToken);
                 }
                 catch (Exception ex)
                 {
