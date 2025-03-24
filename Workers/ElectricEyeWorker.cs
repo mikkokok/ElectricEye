@@ -21,24 +21,41 @@ namespace ElectricEye.Workers
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation($"{nameof(ExecuteAsync)}:: started");
-            Task pricePolling = RunPricePolling(stoppingToken);
-            Task chargerPolling = RunChargerPolling(stoppingToken);
-            await Task.WhenAll(pricePolling, chargerPolling);
-            _logger.LogInformation($"{nameof(ExecuteAsync)}:: ended");
+            _logger.LogInformation($"{_serviceName}:: started");
+            try
+            {
+                Task pricePolling = RunPricePolling(stoppingToken);
+                Task chargerPolling = RunChargerPolling(stoppingToken);
+                await Task.WhenAll(pricePolling, chargerPolling);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation($"{_serviceName} is stopping");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation($"{_serviceName} caught exception", ex);
+            }
+            _logger.LogInformation($"{_serviceName}:: ended");
         }
 
         private async Task RunPricePolling(CancellationToken stoppingToken)
         {
             _logger.LogInformation($"{_serviceName}:: starting price polling");
-            await _priceService.RunPoller(stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await _priceService.RunPoller(stoppingToken);
+            }
             _logger.LogInformation($"{_serviceName}:: ending price polling {stoppingToken.IsCancellationRequested}");
         }
 
         private async Task RunChargerPolling(CancellationToken stoppingToken)
         {
             _logger.LogInformation($"{_serviceName}:: starting charger polling");
-            await _chargerService.RunPoller(stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await _chargerService.RunPoller(stoppingToken);
+            }
             _logger.LogInformation($"{_serviceName}:: ending charger polling {stoppingToken.IsCancellationRequested}");
         }
     }

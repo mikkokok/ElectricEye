@@ -83,8 +83,7 @@ namespace ElectricEye.Services
                     });
                 }
             }
-
-            _logger.LogInformation($"{_serviceName}:: ending carger polling");
+            _logger.LogInformation($"{_serviceName}:: ending carger polling, token {stoppingToken.IsCancellationRequested}");
         }
         private async Task ChargerCollector()
         {
@@ -153,7 +152,7 @@ namespace ElectricEye.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName} cleaning updates list failed", ex.Message);
+                    _logger.LogInformation($"{_serviceName} cleaning updates list failed, token {stoppingToken.IsCancellationRequested}", ex.Message);
                 }
             }
         }

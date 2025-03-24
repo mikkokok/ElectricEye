@@ -84,7 +84,7 @@ namespace ElectricEye.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation($"{_serviceName} running in the while loop", DateTime.Now);
+                _logger.LogInformation($"{_serviceName}:: running in the while loop, token {stoppingToken.IsCancellationRequested}", DateTime.Now);
                 _pollerUpdates.Add(new PollerStatus
                 {
                     Time = DateTime.Now,
@@ -117,6 +117,7 @@ namespace ElectricEye.Services
                     });
                 }
             }
+            _logger.LogInformation($"{_serviceName}:: exited while loop, token {stoppingToken.IsCancellationRequested}", DateTime.Now);
         }
 
         private async Task UpdatePrices()
