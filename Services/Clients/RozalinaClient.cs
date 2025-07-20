@@ -54,7 +54,7 @@ namespace ElectricEye.Services.Clients
             request.Content = new StringContent(json, Encoding.UTF8);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             _logger.LogInformation($"{_serviceName}:: SendTelegramMessage starting to send new data");
-            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DEFAULT_CLIENT_NAME);
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DefaultClientName);
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             _logger.LogInformation($"{_serviceName}:: SendTelegramMessage successfully sent new data");

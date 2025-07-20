@@ -36,7 +36,7 @@ namespace ElectricEye.Services.Clients
             uriBuilder.Query = query.ToString();
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DEFAULT_CLIENT_NAME);
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DefaultClientName);
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             var responseContent = await response.Content.ReadAsStringAsync();

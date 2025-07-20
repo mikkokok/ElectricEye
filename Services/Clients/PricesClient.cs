@@ -26,7 +26,7 @@ namespace ElectricEye.Services.Clients
         private async Task<List<ElectricityPriceDTO>> CollectPrices(string url)
         {
             _logger.LogInformation($"{_serviceName}:: CollectPrices start to get prices from url {url}");
-            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DEFAULT_CLIENT_NAME);
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DefaultClientName);
             HttpResponseMessage response = await httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
             _logger.LogInformation($"{_serviceName}:: CollectPrices got response {response.StatusCode}");
