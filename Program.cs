@@ -1,3 +1,4 @@
+using ElectricEye.Extensions;
 using ElectricEye.Services;
 using ElectricEye.Services.Clients;
 using ElectricEye.Workers;
@@ -16,6 +17,8 @@ builder.Services.AddSingleton<ChargerClient>();
 builder.Services.AddKeyedSingleton<ChargerService>("charger");
 builder.Services.AddKeyedSingleton<PriceService>("price");
 builder.Services.AddHostedService<ElectricEyeWorker>();
+
+builder.AddHttpClients();
 
 var app = builder.Build();
 

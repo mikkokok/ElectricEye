@@ -2,6 +2,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Web;
+using ElectricEye.Extensions;
 
 namespace ElectricEye.Services.Clients
 {
@@ -11,23 +12,15 @@ namespace ElectricEye.Services.Clients
         private ILogger<ChargerClient> _logger;
         private IConfiguration _config;
         private string _chargerUrl;
-        private HttpClient? _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public ChargerClient(IConfiguration config, ILogger<ChargerClient> logger)
+        public ChargerClient(IConfiguration config, ILogger<ChargerClient> logger, IHttpClientFactory httpClientFactory)
         {
             _serviceName = nameof(ChargerClient);
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
             _config = config;
             _chargerUrl = _config["ChargerUrl"] ?? throw new Exception("Charger URL not found from configs");
-        }
-
-        private HttpClient GetHttpClient()
-        {
-            _httpClient ??= new HttpClient()
-            {
-                Timeout = new TimeSpan(0, 0, 30)
-            };
-            return _httpClient;
         }
 
         public async Task<ChargerDTO> GetLatestConsumption()
@@ -43,7 +36,7 @@ namespace ElectricEye.Services.Clients
             uriBuilder.Query = query.ToString();
             using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var httpClient = GetHttpClient();
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DEFAULT_CLIENT_NAME);
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             var responseContent = await response.Content.ReadAsStringAsync();

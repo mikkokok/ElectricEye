@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text;
 using System.Web;
+using ElectricEye.Extensions;
 
 namespace ElectricEye.Services.Clients
 {
@@ -14,23 +15,16 @@ namespace ElectricEye.Services.Clients
         private readonly IConfiguration _config;
         private readonly string _telegramUrl;
         private readonly string _telegramKey;
-        private HttpClient? _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public RozalinaClient(IConfiguration config, ILogger<RozalinaClient> logger)
+        public RozalinaClient(IConfiguration config, ILogger<RozalinaClient> logger, IHttpClientFactory httpClientFactory)
         {
             _serviceName = nameof(RozalinaClient);
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
             _config = config;
             _telegramUrl = _config["TelegramAPI:url"] ?? throw new Exception($"{_serviceName} initialisation failed due to TelegramAPI:url config being null");
             _telegramKey = _config["TelegramAPI:key"] ?? throw new Exception($"{_serviceName} initialisation failed due to TelegramAPI:key config being null");
-        }
-        private HttpClient GetHttpClient()
-        {
-            _httpClient ??= new HttpClient()
-            {
-                Timeout = new TimeSpan(0, 0, 30)
-            };
-            return _httpClient;
         }
 
         public async Task SendTelegramMessage(string from, bool admin, List<ElectricityPrice> electricityPrices)
@@ -60,7 +54,7 @@ namespace ElectricEye.Services.Clients
             request.Content = new StringContent(json, Encoding.UTF8);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             _logger.LogInformation($"{_serviceName}:: SendTelegramMessage starting to send new data");
-            var httpClient = GetHttpClient();
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DEFAULT_CLIENT_NAME);
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             _logger.LogInformation($"{_serviceName}:: SendTelegramMessage successfully sent new data");
