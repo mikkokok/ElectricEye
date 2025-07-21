@@ -1,11 +1,17 @@
 using ElectricEye.Extensions;
+using ElectricEye.Helpers;
 using ElectricEye.Services;
 using ElectricEye.Services.Clients;
 using ElectricEye.Workers;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+GlobalConfig.ApiKey = builder.Configuration["ApiKey"]!;
+GlobalConfig.ChargerUrl = builder.Configuration["ChargerUrl"]!;
+GlobalConfig.PricesAPIConfig = builder.Configuration.GetRequiredSection("PricesAPI").Get<GlobalConfig.PricesAPI>()!;
+GlobalConfig.RestlessFalconConfig = builder.Configuration.GetRequiredSection("RestlessFalcon").Get<GlobalConfig.RestlessFalcon>()!;
+GlobalConfig.TelegramAPIConfig = builder.Configuration.GetRequiredSection("TelegramAPI").Get<GlobalConfig.TelegramAPI>()!;
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -21,7 +27,6 @@ builder.Services.AddHostedService<ElectricEyeWorker>();
 builder.AddHttpClients();
 
 var app = builder.Build();
-
 
 app.UseSwagger();
 app.UseSwaggerUI(options =>

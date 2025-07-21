@@ -1,5 +1,6 @@
 ﻿namespace ElectricEye.Models
 {
+#pragma warning disable
     public class ElectricityPrice
     {
         public string date { get; set; }
