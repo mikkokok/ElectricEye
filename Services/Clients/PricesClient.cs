@@ -1,5 +1,6 @@
 ﻿using ElectricEye.Models;
 using System.Text.Json;
+using ElectricEye.Extensions;
 
 namespace ElectricEye.Services.Clients
 {
@@ -10,30 +11,22 @@ namespace ElectricEye.Services.Clients
         private readonly IConfiguration _config;
         private readonly string _todaySpotUrl;
         private readonly string _tomorrowSpotUrl;
-        private HttpClient? _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public PricesClient(IConfiguration config, ILogger<PricesClient> logger)
+        public PricesClient(IConfiguration config, ILogger<PricesClient> logger, IHttpClientFactory httpClientFactory)
         {
             _serviceName = nameof(PricesClient);
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
             _config = config;
             _todaySpotUrl = _config["TodaySpotAPI"] ?? throw new Exception($"{_serviceName} initialisation failed due to TodaySpotAPI config being null");
             _tomorrowSpotUrl = _config["TomorrowSpotAPI"] ?? throw new Exception($"{_serviceName} initialisation failed due to TodaySpotAPI config being null");
         }
 
-        private HttpClient GetHttpClient()
-        {
-            _httpClient ??= new HttpClient()
-            {
-                Timeout = new TimeSpan(0, 0, 30)
-            };
-            return _httpClient;
-        }
-
         private async Task<List<ElectricityPriceDTO>> CollectPrices(string url)
         {
             _logger.LogInformation($"{_serviceName}:: CollectPrices start to get prices from url {url}");
-            var httpClient = GetHttpClient();
+            var httpClient = _httpClientFactory.CreateClient(HttpClientConst.DefaultClientName);
             HttpResponseMessage response = await httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
             _logger.LogInformation($"{_serviceName}:: CollectPrices got response {response.StatusCode}");
