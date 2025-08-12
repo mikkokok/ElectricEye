@@ -16,10 +16,10 @@ GlobalConfig.TelegramAPIConfig = builder.Configuration.GetRequiredSection("Teleg
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddSingleton<PricesClient>();
-builder.Services.AddSingleton<RozalinaClient>();
-builder.Services.AddSingleton<FalconClient>();
-builder.Services.AddSingleton<ChargerClient>();
+builder.Services.AddTransient<PricesClient>();
+builder.Services.AddTransient<RozalinaClient>();
+builder.Services.AddTransient<FalconClient>();
+builder.Services.AddTransient<ChargerClient>();
 builder.Services.AddKeyedSingleton<ChargerService>("charger");
 builder.Services.AddKeyedSingleton<PriceService>("price");
 builder.Services.AddHostedService<ElectricEyeWorker>();

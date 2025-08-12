@@ -13,10 +13,11 @@ namespace ElectricEye.Services.Clients
         private string _serviceName = nameof(ChargerClient);
         private readonly ILogger<ChargerClient> _logger = logger;
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly Guid _operationId = Guid.NewGuid();
 
         public async Task<ChargerDTO> GetLatestConsumption()
         {
-            _logger.LogInformation($"{_serviceName}:: GetLatestConsumption start to get latest consumption");
+            _logger.LogInformation($"{_serviceName} {_operationId}:: GetLatestConsumption start to get latest consumption");
             var uriBuilder = new UriBuilder(GlobalConfig.ChargerUrl!)
             {
                 Scheme = Uri.UriSchemeHttp,
@@ -32,7 +33,7 @@ namespace ElectricEye.Services.Clients
             response.EnsureSuccessStatusCode();
             var responseContent = await response.Content.ReadAsStringAsync();
             var reading = JsonSerializer.Deserialize<ChargerDTO>(responseContent);
-            _logger.LogInformation($"{_serviceName}:: GetLatestConsumption got {reading}");
+            _logger.LogInformation($"{_serviceName} {_operationId}:: GetLatestConsumption got {reading}");
             return reading ?? throw new Exception($"Could not get reasonable values from {uriBuilder.Uri}, reading was null");
         }
     }

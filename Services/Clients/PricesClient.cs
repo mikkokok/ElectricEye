@@ -11,17 +11,18 @@ namespace ElectricEye.Services.Clients
         private readonly string _serviceName = nameof(PricesClient);
         private readonly ILogger<PricesClient> _logger = logger;
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly Guid _operationId = Guid.NewGuid();
 
         private async Task<List<ElectricityPriceDTO>> CollectPrices(string url)
         {
-            _logger.LogInformation($"{_serviceName}:: CollectPrices start to get prices from url {url}");
+            _logger.LogInformation($"{_serviceName} {_operationId}:: CollectPrices start to get prices from url {url}");
             var httpClient = _httpClientFactory.CreateClient(HttpClientConst.PricesClientName);
             HttpResponseMessage response = await httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
-            _logger.LogInformation($"{_serviceName}:: CollectPrices got response {response.StatusCode}");
+            _logger.LogInformation($"{_serviceName} {_operationId}:: CollectPrices got response {response.StatusCode}");
             var responseContent = await response.Content.ReadAsStringAsync();
             var prices = JsonSerializer.Deserialize<List<ElectricityPriceDTO>>(responseContent);
-            return prices ?? throw new Exception($"{_serviceName} got null as prices");
+            return prices ?? throw new Exception($"{_serviceName} {_operationId} got null as prices");
         }
 
         public async Task<List<ElectricityPriceDTO>> CollectTodayPrices()

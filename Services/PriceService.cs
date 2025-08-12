@@ -115,6 +115,7 @@ namespace ElectricEye.Services
                         Status = false,
                         StatusReason = ex.Message ?? ex.StackTrace ?? ex.ToString()
                     });
+                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
                 }
             }
             _logger.LogInformation($"{_serviceName}:: exited while loop, token {stoppingToken.IsCancellationRequested}", DateTime.Now);
