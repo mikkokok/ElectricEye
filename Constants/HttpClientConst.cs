@@ -1,5 +1,4 @@
-﻿using ElectricEye.Services.Clients;
-
+﻿
 namespace ElectricEye.Constants
 {
     sealed class HttpClientConst

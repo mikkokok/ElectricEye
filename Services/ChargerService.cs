@@ -3,28 +3,21 @@ using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Text.Json;
 using System.Web;
-using ElectricEye.Services.Clients;
+using ElectricEye.Helpers;
+using ElectricEye.Constants;
 
 namespace ElectricEye.Services
 {
-    public sealed class ChargerService
+    public sealed class ChargerService(ILogger<ChargerService> logger, IRequestProvider requestProvider)
     {
-        private readonly string _serviceName = "";
-        private readonly ILogger<ChargerService> _logger;
-        private readonly ChargerClient _chargerClient;
-        private readonly FalconClient _falconClient;
+        private readonly string _serviceName = nameof(ChargerService);
+        private readonly ILogger<ChargerService> _logger = logger;
+        private readonly IRequestProvider _requestProvider = requestProvider;
         private List<PollerStatus> _pollerUpdates = [];
         private int _lastHour;
         private int _lastReading;
         private bool _initialPoll = true;
 
-        public ChargerService(ILogger<ChargerService> logger, ChargerClient chargerClient, FalconClient falconClient)
-        {
-            _serviceName = nameof(ChargerService);
-            _logger = logger;
-            _chargerClient = chargerClient;
-            _falconClient = falconClient;
-        }
         public List<PollerStatus> GetStatus()
         {
             return _pollerUpdates;
@@ -46,7 +39,7 @@ namespace ElectricEye.Services
                             try
                             {
                                 await ChargerCollector();
-                                _logger.LogInformation($"{_serviceName}:: charger collecting success. ending loop");
+                                _logger.LogInformation($"{_serviceName}:: charger collecting success. ending loop. Cleanin task status {cleanTask.Status}");
                                 break;
                             }
                             catch (Exception ex)
@@ -70,7 +63,6 @@ namespace ElectricEye.Services
                         }
                     }
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-                    _logger.LogInformation($"{_serviceName}:: cleaningTask status: {cleanTask.IsFaulted} ");
                 }
                 catch (Exception ex)
                 {
@@ -87,7 +79,7 @@ namespace ElectricEye.Services
         }
         private async Task ChargerCollector()
         {
-            var reading = await _chargerClient.GetLatestConsumption();
+            var reading = await GetLatestConsumption();
             _logger.LogInformation($"{_serviceName}:: got {reading} for latest consumption");
 
             if (!_initialPoll)
@@ -102,7 +94,7 @@ namespace ElectricEye.Services
             {
                 DateTime now = DateTime.Now;
                 DateTime rounded = new(now.Year, now.Month, now.Day, now.Hour, 0, 0);
-                await _falconClient.SendChargingData(new CarCharge
+                await SendChargingData(new CarCharge
                 {
                     date = rounded.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss").Replace(".", ":"),
                     charged = CalculateDifferenceAndConvert(reading.eto).ToString(),
@@ -155,6 +147,20 @@ namespace ElectricEye.Services
                     _logger.LogInformation($"{_serviceName} cleaning updates list failed, token {stoppingToken.IsCancellationRequested}", ex.Message);
                 }
             }
+        }
+        private async Task<ChargerDTO> GetLatestConsumption()
+        {
+            var result = await _requestProvider.GetAsync<ChargerDTO>(HttpClientConst.ChargerClientName, GlobalConfig.ChargerUrl!);
+            return result ?? throw new Exception($"Getting latest readings from {GlobalConfig.ChargerUrl!} failed");
+        }
+
+        private async Task SendChargingData(CarCharge charge)
+        {
+            var url = GlobalConfig.RestlessFalconConfig!.baseUrl + GlobalConfig.RestlessFalconConfig.chargingUrl;
+            var query = HttpUtility.ParseQueryString(string.Empty);
+            query["authKey"] = GlobalConfig.RestlessFalconConfig.key;
+            url = string.Join("?", url, query.ToString());
+            await _requestProvider.PostAsync(HttpClientConst.FalconClientName, url, charge);
         }
     }
 }

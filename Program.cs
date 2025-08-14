@@ -1,7 +1,6 @@
 using ElectricEye.Extensions;
 using ElectricEye.Helpers;
 using ElectricEye.Services;
-using ElectricEye.Services.Clients;
 using ElectricEye.Workers;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,10 +15,7 @@ GlobalConfig.TelegramAPIConfig = builder.Configuration.GetRequiredSection("Teleg
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddTransient<PricesClient>();
-builder.Services.AddTransient<RozalinaClient>();
-builder.Services.AddTransient<FalconClient>();
-builder.Services.AddTransient<ChargerClient>();
+builder.Services.AddSingleton<IRequestProvider, RequestProvider>();
 builder.Services.AddKeyedSingleton<ChargerService>("charger");
 builder.Services.AddKeyedSingleton<PriceService>("price");
 builder.Services.AddHostedService<ElectricEyeWorker>();
