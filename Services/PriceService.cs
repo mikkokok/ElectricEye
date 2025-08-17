@@ -16,7 +16,7 @@ namespace ElectricEye.Services
         private readonly List<PollerStatus> _pollerUpdates = [];
         private DateTime _todaysDate;
         private bool _pricesSent = true;
-        private readonly int _desiredPollingHour = 10;
+        private readonly int _desiredPollingHour = 14;
         public List<ElectricityPrice> CurrentPrices { get; private set; } = [];
         public List<ElectricityPrice> TomorrowPrices { get; private set; } = [];
 
@@ -259,7 +259,7 @@ namespace ElectricEye.Services
                 sb.Append(price.price);
                 sb.AppendLine(" ");
             }
-            var query = HttpUtility.ParseQueryString(string.Empty);
+            var query = HttpUtility.ParseQueryString(new UriBuilder().Query);
             query["message"] = sb.ToString();
             query["from"] = sender;
             query["admin"] = sendToAdmin.ToString();
