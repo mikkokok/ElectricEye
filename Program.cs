@@ -16,8 +16,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<IRequestProvider, RequestProvider>();
-builder.Services.AddKeyedSingleton<ChargerService>("charger");
-builder.Services.AddKeyedSingleton<PriceService>("price");
+builder.Services.AddSingleton<ChargerService>();
+builder.Services.AddSingleton<PriceService>();
 builder.Services.AddHostedService<ElectricEyeWorker>();
 
 builder.AddHttpClients();
@@ -32,14 +32,36 @@ app.UseSwaggerUI(options =>
 });
 
 app.MapGet("/ping", () => "pong");
-app.MapGet("/status", ([FromKeyedServices("charger")] ChargerService chargerService, [FromKeyedServices("price")] PriceService priceService) => Results.Ok(chargerService.GetStatus().Concat(priceService.GetStatus())));
-app.MapGet("/prices/{current}", ([FromRoute]bool current, [FromKeyedServices("price")] PriceService priceService) =>
+app.MapGet("/status", ([FromServices] ChargerService chargerService, [FromServices] PriceService priceService) => Results.Ok(chargerService.GetStatus().Concat(priceService.GetStatus())));
+app.MapGet("/prices/{current}", ([FromRoute]bool current, [FromServices] PriceService priceService) =>
 {
     if (current)
     {
         return Results.Ok(priceService.CurrentPrices);
     }
     return Results.Ok(priceService.TomorrowPrices);
+});
+app.MapGet("/tasks", ([FromServices] ChargerService chargerService, [FromServices] PriceService priceService) =>
+{
+    return Results.Ok(new
+    {
+        ChargerService = chargerService.CleanTask?.Status.ToString() ?? "No cleaning task",
+        ChargerServiceExceptions = chargerService.CleanTask?.Exception?.Message != null
+            ? [chargerService.CleanTask.Exception.Message]
+            : Array.Empty<string>(),
+        PriceService = priceService.CleanTask?.Status.ToString() ?? "No cleaning task",
+        PriceServiceExceptions = priceService.CleanTask?.Exception?.Message != null
+            ? [priceService.CleanTask.Exception.Message]
+            : Array.Empty<string>(),
+        PricePollingTask = priceService.PriceTask?.Status.ToString() ?? "No price polling task",
+        PricePollingTaskExceptions = priceService.PriceTask?.Exception?.Message != null
+            ? [priceService.PriceTask.Exception.Message]
+            : Array.Empty<string>(),
+        ChargerPollingTask = chargerService.ChargerTask?.Status.ToString() ?? "No charger polling task",
+        ChargerPollingTaskExceptions = chargerService.ChargerTask?.Exception?.Message != null
+            ? [chargerService.ChargerTask.Exception.Message]
+            : Array.Empty<string>(),
+    });
 });
 
 app.Run();

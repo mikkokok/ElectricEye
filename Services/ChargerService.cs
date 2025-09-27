@@ -17,6 +17,8 @@ namespace ElectricEye.Services
         private int _lastHour;
         private int _lastReading;
         private bool _initialPoll = true;
+        public Task? CleanTask { get; private set; }
+        public Task? ChargerTask;
 
         public List<PollerStatus> GetStatus()
         {
@@ -26,7 +28,7 @@ namespace ElectricEye.Services
         public async Task RunPoller(CancellationToken stoppingToken)
         {
             _logger.LogInformation($"{_serviceName}:: starting charger polling");
-            Task cleanTask = CleanUpdatesList(stoppingToken);
+            CleanTask = CleanUpdatesList(stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -39,7 +41,7 @@ namespace ElectricEye.Services
                             try
                             {
                                 await ChargerCollector();
-                                _logger.LogInformation($"{_serviceName}:: charger collecting success. ending loop. Cleanin task status {cleanTask.Status}");
+                                _logger.LogInformation($"{_serviceName}:: charger collecting success. ending loop. Cleanin task status {CleanTask.Status}");
                                 break;
                             }
                             catch (Exception ex)

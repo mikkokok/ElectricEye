@@ -7,6 +7,22 @@ public static class HttpClientExtensions
 {
     public static void AddHttpClients(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddHttpClient(HttpClientConst.PricesClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            MaxConnectionsPerServer = 10
+        });
+        builder.Services.AddHttpClient(HttpClientConst.ChargerClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+        MaxConnectionsPerServer = 10
+        });
         builder.Services.AddHttpClient(HttpClientConst.FalconClientName, (client) => { client.Timeout = TimeSpan.FromSeconds(30); })
             .ConfigurePrimaryHttpMessageHandler(provider =>
             {

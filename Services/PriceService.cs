@@ -3,6 +3,7 @@ using ElectricEye.Helpers;
 using ElectricEye.Models;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 using System.Web;
 
 namespace ElectricEye.Services
@@ -19,6 +20,8 @@ namespace ElectricEye.Services
         private readonly int _desiredPollingHour = 14;
         public List<ElectricityPrice> CurrentPrices { get; private set; } = [];
         public List<ElectricityPrice> TomorrowPrices { get; private set; } = [];
+        public Task? CleanTask { get; private set; }
+        public Task? PriceTask;
 
         public List<PollerStatus> GetStatus()
         {
@@ -44,11 +47,11 @@ namespace ElectricEye.Services
 
             }
 
-            var CleaningTask = CleanUpdatesList();
+            CleanTask = CleanUpdatesList(stoppingToken);
             var PollingTask = StartPolling(stoppingToken);
             try
             {
-                await Task.WhenAll(CleaningTask, PollingTask);
+                await Task.WhenAll(CleanTask, PollingTask);
             }
             catch (Exception ex)
             {
@@ -98,17 +101,31 @@ namespace ElectricEye.Services
                     }
                     await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
                 }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: continuous polling cancelled");
+                    break;
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName} update failed", ex.ToString());
+                    _logger.LogError(ex, $"{_serviceName}:: polling cycle failed");
+
                     _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
                         Poller = _serviceName,
                         Status = false,
-                        StatusReason = ex.Message ?? ex.StackTrace ?? ex.ToString()
+                        StatusReason = $"Polling failed: {ex.Message}"
                     });
-                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
             _logger.LogInformation($"{_serviceName}:: exited while loop, token {stoppingToken.IsCancellationRequested}", DateTime.Now);
@@ -215,9 +232,9 @@ namespace ElectricEye.Services
                 _logger.LogInformation($"{_serviceName}:: updated date to {_todaysDate}");
             }
         }
-        private async Task CleanUpdatesList()
+        private async Task CleanUpdatesList(CancellationToken stoppingToken)
         {
-            while (true)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
@@ -226,11 +243,25 @@ namespace ElectricEye.Services
                         _pollerUpdates.Clear();
                         _logger.LogInformation($"{_serviceName}:: cleaned updates list");
                     }
-                    await Task.Delay(TimeSpan.FromMinutes(45));
+                    await Task.Delay(TimeSpan.FromMinutes(45), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: cleaning task cancelled");
+                    break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName}:: cleaning updates list failed", ex.Message);
+                    _logger.LogError(ex, $"{_serviceName}:: cleaning task error, continuing");
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
         }
