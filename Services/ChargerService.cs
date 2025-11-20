@@ -1,7 +1,4 @@
 ﻿using ElectricEye.Models;
-using System.Net.Http.Headers;
-using System.Net.Http;
-using System.Text.Json;
 using System.Web;
 using ElectricEye.Helpers;
 using ElectricEye.Constants;
@@ -13,7 +10,7 @@ namespace ElectricEye.Services
         private readonly string _serviceName = nameof(ChargerService);
         private readonly ILogger<ChargerService> _logger = logger;
         private readonly IRequestProvider _requestProvider = requestProvider;
-        private List<PollerStatus> _pollerUpdates = [];
+        private readonly List<PollerStatus> _pollerUpdates = [];
         private int _lastTime;
         private int _lastReading;
         private bool _initialPoll = true;

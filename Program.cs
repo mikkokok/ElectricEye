@@ -1,8 +1,9 @@
 using ElectricEye.Extensions;
 using ElectricEye.Helpers;
+using ElectricEye.Routes;
+using ElectricEye.Routes.Middlewares;
 using ElectricEye.Services;
 using ElectricEye.Workers;
-using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,37 +32,10 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = string.Empty;
 });
 
-app.MapGet("/ping", () => "pong");
-app.MapGet("/status", ([FromServices] ChargerService chargerService, [FromServices] PriceService priceService) => Results.Ok(chargerService.GetStatus().Concat(priceService.GetStatus())));
-app.MapGet("/prices/{current}", ([FromRoute]bool current, [FromServices] PriceService priceService) =>
-{
-    if (current)
-    {
-        return Results.Ok(priceService.CurrentPrices);
-    }
-    return Results.Ok(priceService.TomorrowPrices);
-});
-app.MapGet("/tasks", ([FromServices] ChargerService chargerService, [FromServices] PriceService priceService) =>
-{
-    return Results.Ok(new
-    {
-        ChargerService = chargerService.CleanTask?.Status.ToString() ?? "No cleaning task",
-        ChargerServiceExceptions = chargerService.CleanTask?.Exception?.Message != null
-            ? [chargerService.CleanTask.Exception.Message]
-            : Array.Empty<string>(),
-        PriceService = priceService.CleanTask?.Status.ToString() ?? "No cleaning task",
-        PriceServiceExceptions = priceService.CleanTask?.Exception?.Message != null
-            ? [priceService.CleanTask.Exception.Message]
-            : Array.Empty<string>(),
-        PricePollingTask = priceService.PriceTask?.Status.ToString() ?? "No price polling task",
-        PricePollingTaskExceptions = priceService.PriceTask?.Exception?.Message != null
-            ? [priceService.PriceTask.Exception.Message]
-            : Array.Empty<string>(),
-        ChargerPollingTask = chargerService.ChargerTask?.Status.ToString() ?? "No charger polling task",
-        ChargerPollingTaskExceptions = chargerService.ChargerTask?.Exception?.Message != null
-            ? [chargerService.ChargerTask.Exception.Message]
-            : Array.Empty<string>(),
-    });
-});
+app.UseRouting();
+app.UseMiddleware<ApiVersionHeaderMiddleware>();
+app.MapPriceEndpoints();
+app.MapChargerEndpoints();
+app.MapPingEndpoints();
 
 app.Run();
