@@ -81,8 +81,6 @@ namespace ElectricEye.Workers
                         break;
                     }
                 }
-                _logger.LogError($"{_serviceName}:: Price polling failed really unexpectedly, restarting in 30 seconds...");
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
             _logger.LogInformation($"{_serviceName}:: ending price polling {stoppingToken.IsCancellationRequested}");
 
