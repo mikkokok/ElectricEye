@@ -153,7 +153,7 @@ namespace ElectricEye.Services
 
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
             var tempTomorrow = await GetPricesFromFalcon(tomorrowDate);
-            _logger.LogInformation($"{_serviceName}:: got {tempCurrent.Count} tomorrow prices from Falcon");
+            _logger.LogInformation($"{_serviceName}:: got {tempTomorrow.Count} tomorrow prices from Falcon");
             if (tempTomorrow.Count != _expectedPricesCount)
             {
                 await UpdateTomorrowPrices();

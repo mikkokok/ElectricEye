@@ -112,8 +112,7 @@ namespace ElectricEye.Workers
                         break;
                     }
                 }
-                _logger.LogError($"{_serviceName}:: Charger polling failed really unexpectedly, restarting in 30 seconds...");
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+
 
             }
             _logger.LogInformation($"{_serviceName}:: ending charger polling {stoppingToken.IsCancellationRequested}");

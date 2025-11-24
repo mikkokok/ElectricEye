@@ -16,7 +16,7 @@ namespace ElectricEye.Services
         private bool _initialPoll = true;
         public Task? CleanTask { get; private set; }
         public Task? ChargerTask;
-        public int _delaySeconds = 5;
+        private int _delaySeconds = 5;
 
         public List<PollerStatus> GetStatus()
         {
@@ -86,8 +86,8 @@ namespace ElectricEye.Services
                     });
                 }
             }
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
-            _logger.LogInformation($"{_serviceName}:: ending carger polling, token {stoppingToken.IsCancellationRequested}");
+
+            _logger.LogInformation($"{_serviceName}:: ending charger polling, token {stoppingToken.IsCancellationRequested}");
         }
         private async Task ChargerCollector()
         {
