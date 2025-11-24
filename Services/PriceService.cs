@@ -17,8 +17,12 @@ namespace ElectricEye.Services
         private DateTime _todaysDate;
         private bool _pricesSent = true;
         private readonly int _desiredPollingHour = 14;
+        private readonly int _expectedPricesCount = 96;
         public List<ElectricityPrice> CurrentPrices { get; private set; } = [];
         public List<ElectricityPrice> TomorrowPrices { get; private set; } = [];
+        public Task? CleanTask { get; private set; }
+        public Task? PriceTask;
+
 
         public List<PollerStatus> GetStatus()
         {
@@ -41,14 +45,13 @@ namespace ElectricEye.Services
                     Status = false,
                     StatusReason = $"Initialization failed, {ex.Message}"
                 });
-
             }
 
-            var CleaningTask = CleanUpdatesList();
+            CleanTask = CleanUpdatesList(stoppingToken);
             var PollingTask = StartPolling(stoppingToken);
             try
             {
-                await Task.WhenAll(CleaningTask, PollingTask);
+                await Task.WhenAll(CleanTask, PollingTask);
             }
             catch (Exception ex)
             {
@@ -98,18 +101,33 @@ namespace ElectricEye.Services
                     }
                     await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
                 }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: continuous polling cancelled {DateTime.Now}");
+                    break;
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName} update failed", ex.ToString());
+                    _logger.LogError(ex, $"{_serviceName}:: polling cycle failed");
+
                     _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
                         Poller = _serviceName,
                         Status = false,
-                        StatusReason = ex.Message ?? ex.StackTrace ?? ex.ToString()
+                        StatusReason = $"Polling failed: {ex.Message}"
                     });
-                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
-                }
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogInformation($"{_serviceName}:: continuous polling cancelled {DateTime.Now}");
+                        break;
+                    }
+                } 
             }
             _logger.LogInformation($"{_serviceName}:: exited while loop, token {stoppingToken.IsCancellationRequested}", DateTime.Now);
         }
@@ -123,7 +141,8 @@ namespace ElectricEye.Services
         {
             _logger.LogInformation($"{_serviceName}:: start to initialize prices");
             List<ElectricityPrice> tempCurrent = await GetPricesFromFalcon();
-            if (tempCurrent.Count == 0)
+            _logger.LogInformation($"{_serviceName}:: got {tempCurrent.Count} current prices from Falcon");
+            if (tempCurrent.Count != _expectedPricesCount)
             {
                 await UpdateTodayPrices();
             }
@@ -134,7 +153,8 @@ namespace ElectricEye.Services
 
             string tomorrowDate = DateTime.Today.AddDays(1).Date.ToString("yyyy-MM-dd").Replace(".", ":");
             var tempTomorrow = await GetPricesFromFalcon(tomorrowDate);
-            if (tempTomorrow.Count == 0)
+            _logger.LogInformation($"{_serviceName}:: got {tempTomorrow.Count} tomorrow prices from Falcon");
+            if (tempTomorrow.Count != _expectedPricesCount)
             {
                 await UpdateTomorrowPrices();
             }
@@ -147,7 +167,7 @@ namespace ElectricEye.Services
 
         private async Task UpdateTodayPrices()
         {
-            var pricesdto = await GetTodayPrices(); ;
+            var pricesdto = await GetTodayPrices();
             CurrentPrices = MapDTOPrices(pricesdto);
             await SendPricesToFalcon(CurrentPrices);
             _pollerUpdates.Add(new PollerStatus
@@ -163,7 +183,7 @@ namespace ElectricEye.Services
         private async Task UpdateTomorrowPrices()
         {
             var pricesdto = await GetTomorrowPrices();
-            TomorrowPrices = MapDTOPrices(pricesdto!);
+            TomorrowPrices = MapDTOPrices(pricesdto);
             if (!_pricesSent)
             {
                 await CheckForHighPriceAsync(TomorrowPrices);
@@ -215,9 +235,9 @@ namespace ElectricEye.Services
                 _logger.LogInformation($"{_serviceName}:: updated date to {_todaysDate}");
             }
         }
-        private async Task CleanUpdatesList()
+        private async Task CleanUpdatesList(CancellationToken stoppingToken)
         {
-            while (true)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
@@ -226,11 +246,25 @@ namespace ElectricEye.Services
                         _pollerUpdates.Clear();
                         _logger.LogInformation($"{_serviceName}:: cleaned updates list");
                     }
-                    await Task.Delay(TimeSpan.FromMinutes(45));
+                    await Task.Delay(TimeSpan.FromMinutes(45), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: cleaning task cancelled");
+                    break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName}:: cleaning updates list failed", ex.Message);
+                    _logger.LogError(ex, $"{_serviceName}:: cleaning task error, continuing");
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -246,8 +280,40 @@ namespace ElectricEye.Services
         }
         private async Task<List<ElectricityPriceDTO>> GetPrices(string url)
         {
-            var prices = await _requestProvider.GetAsync<List<ElectricityPriceDTO>>(HttpClientConst.PricesClientName, url);
-            return prices ?? throw new Exception($"Getting latest readings from {url} failed");
+            const int maxRetries = 6;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation($"{_serviceName}:: Fetching prices from {url} (attempt {attempt}/{maxRetries})");
+
+                    var prices = await _requestProvider.GetAsync<List<ElectricityPriceDTO>>(HttpClientConst.PricesClientName, url) ?? throw new Exception($"Received null response from {url}");
+                    if (prices.Count != _expectedPricesCount)
+                    {
+                        throw new Exception($"Received {prices.Count} prices, expected {_expectedPricesCount}");
+                    }
+
+                    _logger.LogInformation($"{_serviceName}:: Successfully fetched {prices.Count} prices from {url}");
+                    return prices;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"{_serviceName}:: Attempt {attempt}/{maxRetries} failed for {url}: {ex.Message}");
+
+                    if (attempt == maxRetries)
+                    {
+                        _logger.LogError($"{_serviceName}:: All {maxRetries} attempts failed for {url}");
+                        throw new Exception($"Failed to get correct price data after {maxRetries} attempts: {ex.Message}", ex);
+                    }
+
+                    // Wait before retry (exponential backoff)
+                    var delay = TimeSpan.FromMinutes(Math.Pow(2, attempt)); // 2m, 4m, 8m, 16m, 32m, 64m
+                    _logger.LogInformation($"{_serviceName}:: Waiting {delay.TotalMinutes}m before retry...");
+                    await Task.Delay(delay);
+                }
+            }
+            throw new Exception($"Unexpected error in retry logic for {url}");
         }
         private async Task SendTelegramMessage(string sender, bool sendToAdmin, List<ElectricityPrice> electricityPrices)
         {

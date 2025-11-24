@@ -1,5 +1,6 @@
 ﻿
 using ElectricEye.Services;
+using Microsoft.AspNetCore.Mvc;
 using System.Reflection;
 
 namespace ElectricEye.Workers
@@ -11,7 +12,7 @@ namespace ElectricEye.Workers
         private readonly PriceService _priceService;
         private readonly string _serviceName;
 
-        public ElectricEyeWorker(ILogger<ElectricEyeWorker> logger, [FromKeyedServices("charger")] ChargerService chargerService, [FromKeyedServices("price")]PriceService priceService)
+        public ElectricEyeWorker(ILogger<ElectricEyeWorker> logger, [FromServices] ChargerService chargerService, [FromServices] PriceService priceService)
         {
             _logger = logger;
             _chargerService = chargerService;
@@ -24,9 +25,23 @@ namespace ElectricEye.Workers
             _logger.LogInformation($"{_serviceName}:: started");
             try
             {
-                Task pricePolling = RunPricePolling(stoppingToken);
-                Task chargerPolling = RunChargerPolling(stoppingToken);
-                await Task.WhenAll(pricePolling, chargerPolling);
+                using var priceCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                using var chargerCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+
+                _priceService.PriceTask = RunPricePolling(priceCts.Token);
+                _chargerService.ChargerTask = RunChargerPolling(chargerCts.Token);
+                var completedTask = await Task.WhenAny(_priceService.PriceTask, _chargerService.ChargerTask);
+
+                if (completedTask == _priceService.PriceTask)
+                {
+                    _logger.LogWarning($"{_serviceName}:: Price polling task completed unexpectedly, cancelling charger polling...");
+                    chargerCts.Cancel();
+                }
+                else if (completedTask == _chargerService.ChargerTask)
+                {
+                    _logger.LogWarning($"{_serviceName}:: Charger polling task completed unexpectedly, cancelling price polling...");
+                    priceCts.Cancel();
+                }
             }
             catch (OperationCanceledException)
             {
@@ -34,7 +49,7 @@ namespace ElectricEye.Workers
             }
             catch (Exception ex)
             {
-                _logger.LogInformation($"{_serviceName} caught exception", ex);
+                _logger.LogInformation($"{_serviceName} caught unexpected exception", ex);
             }
             _logger.LogInformation($"{_serviceName}:: ended");
         }
@@ -44,9 +59,31 @@ namespace ElectricEye.Workers
             _logger.LogInformation($"{_serviceName}:: starting price polling");
             while (!stoppingToken.IsCancellationRequested)
             {
-                await _priceService.RunPoller(stoppingToken);
+                try
+                {
+                    await _priceService.RunPoller(stoppingToken);
+                    _logger.LogWarning($"{_serviceName}:: RunPoller completed unexpectedly, restarting...");
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: Price polling cancelled");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"{_serviceName}:: Price polling failed, restarting in 30 seconds...");
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
             }
             _logger.LogInformation($"{_serviceName}:: ending price polling {stoppingToken.IsCancellationRequested}");
+
         }
 
         private async Task RunChargerPolling(CancellationToken stoppingToken)
@@ -54,7 +91,29 @@ namespace ElectricEye.Workers
             _logger.LogInformation($"{_serviceName}:: starting charger polling");
             while (!stoppingToken.IsCancellationRequested)
             {
-                await _chargerService.RunPoller(stoppingToken);
+                try
+                {
+                    await _chargerService.RunPoller(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation($"{_serviceName}:: Charger polling cancelled");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"{_serviceName}:: Charger polling failed, restarting in 30 seconds...");
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+
+
             }
             _logger.LogInformation($"{_serviceName}:: ending charger polling {stoppingToken.IsCancellationRequested}");
         }

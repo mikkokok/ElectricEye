@@ -1,8 +1,9 @@
 using ElectricEye.Extensions;
 using ElectricEye.Helpers;
+using ElectricEye.Routes;
+using ElectricEye.Routes.Middlewares;
 using ElectricEye.Services;
 using ElectricEye.Workers;
-using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,8 +17,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<IRequestProvider, RequestProvider>();
-builder.Services.AddKeyedSingleton<ChargerService>("charger");
-builder.Services.AddKeyedSingleton<PriceService>("price");
+builder.Services.AddSingleton<ChargerService>();
+builder.Services.AddSingleton<PriceService>();
 builder.Services.AddHostedService<ElectricEyeWorker>();
 
 builder.AddHttpClients();
@@ -31,15 +32,10 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = string.Empty;
 });
 
-app.MapGet("/ping", () => "pong");
-app.MapGet("/status", ([FromKeyedServices("charger")] ChargerService chargerService, [FromKeyedServices("price")] PriceService priceService) => Results.Ok(chargerService.GetStatus().Concat(priceService.GetStatus())));
-app.MapGet("/prices/{current}", ([FromRoute]bool current, [FromKeyedServices("price")] PriceService priceService) =>
-{
-    if (current)
-    {
-        return Results.Ok(priceService.CurrentPrices);
-    }
-    return Results.Ok(priceService.TomorrowPrices);
-});
+app.UseRouting();
+app.UseMiddleware<ApiVersionHeaderMiddleware>();
+app.MapPriceEndpoints();
+app.MapChargerEndpoints();
+app.MapPingEndpoints();
 
 app.Run();
