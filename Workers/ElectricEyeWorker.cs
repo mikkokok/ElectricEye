@@ -112,8 +112,6 @@ namespace ElectricEye.Workers
                         break;
                     }
                 }
-
-
             }
             _logger.LogInformation($"{_serviceName}:: ending charger polling {stoppingToken.IsCancellationRequested}");
         }

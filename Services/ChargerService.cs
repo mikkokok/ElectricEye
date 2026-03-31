@@ -25,7 +25,7 @@ namespace ElectricEye.Services
 
         public async Task RunPoller(CancellationToken stoppingToken)
         {
-            _logger.LogInformation($"{_serviceName}:: starting charger polling");
+            _logger.LogInformation("{Service}:: starting charger polling", _serviceName);
             _lastTime = DateTime.Now.Minute;
             CleanTask = CleanUpdatesList(stoppingToken);
 
@@ -41,12 +41,13 @@ namespace ElectricEye.Services
                             {
                                 await ChargerCollector();
                                 await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
-                                _logger.LogInformation($"{_serviceName}:: charger collecting success. ending loop. Cleanin task status {CleanTask.Status}");
+                                _logger.LogInformation("{Service}:: charger collecting success. ending loop. Cleaning task status {Status}", _serviceName, CleanTask?.Status);
                                 break;
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogError($"{_serviceName}:: {ex.Message}");
+                                _logger.LogError(ex, "{Service}:: charger collecting attempt {Attempt}/3 failed", _serviceName, i);
+
                                 _pollerUpdates.Add(new PollerStatus
                                 {
                                     Time = DateTime.Now,
@@ -54,29 +55,35 @@ namespace ElectricEye.Services
                                     Status = false,
                                     StatusReason = $"Charger polling failed, errormessage {ex.Message}, continuing with {i}/3 retries"
                                 });
-                                _logger.LogInformation($"{_serviceName}:: continuing with {i}/3 retries");
+
+                                _logger.LogInformation("{Service}:: continuing with {Attempt}/3 retries", _serviceName, i);
+
                                 if (i >= 3)
                                 {
-                                    _logger.LogInformation($"{_serviceName}:: {i}/3 retries, passed limit");
+                                    _logger.LogInformation("{Service}:: {Attempt}/3 retries, passed limit", _serviceName, i);
                                     throw new Exception("Retries done, exiting");
                                 }
+
                                 await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
                             }
                         }
                     }
+
                     if (DateTime.Now.Minute < 13 && DateTime.Now.Minute > 1)
                     {
-                      _delaySeconds = 45;
+                        _delaySeconds = 45;
                     }
                     else
                     {
                         _delaySeconds = 5;
                     }
+
                     await Task.Delay(TimeSpan.FromSeconds(_delaySeconds), stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"{_serviceName}:: polling failed, token {stoppingToken.IsCancellationRequested}, errormessage {ex.Message}");
+                    _logger.LogError(ex, "{Service}:: polling failed, token {IsCancellationRequested}", _serviceName, stoppingToken.IsCancellationRequested);
+
                     _pollerUpdates.Add(new PollerStatus
                     {
                         Time = DateTime.Now,
@@ -87,12 +94,13 @@ namespace ElectricEye.Services
                 }
             }
 
-            _logger.LogInformation($"{_serviceName}:: ending charger polling, token {stoppingToken.IsCancellationRequested}");
+            _logger.LogInformation("{Service}:: ending charger polling, token {IsCancellationRequested}", _serviceName, stoppingToken.IsCancellationRequested);
         }
+
         private async Task ChargerCollector()
         {
             var reading = await GetLatestConsumption();
-            _logger.LogInformation($"{_serviceName}:: got {reading} for latest consumption");
+            _logger.LogInformation("{Service}:: got {@Reading} for latest consumption", _serviceName, reading);
 
             if (!_initialPoll)
             {
@@ -124,18 +132,25 @@ namespace ElectricEye.Services
 
             _lastReading = reading.eto;
             _initialPoll = false;
-            _logger.LogInformation($"{_serviceName}:: ended run of ChargerCollector {DateTime.Now} lastReading: {_lastReading} initialPoll: {_initialPoll}");
+
+            _logger.LogInformation("{Service}:: ended run of ChargerCollector at {Now}, lastReading: {LastReading}, initialPoll: {InitialPoll}", _serviceName, DateTime.Now, _lastReading, _initialPoll);
         }
 
         private bool CalculateExactMinute()
         {
-            if (_lastTime != DateTime.Now.Minute && ( DateTime.Now.Minute == 0 || DateTime.Now.Minute == 15 || DateTime.Now.Minute == 30 || DateTime.Now.Minute == 45))
+            if (_lastTime != DateTime.Now.Minute &&
+                (DateTime.Now.Minute == 0 ||
+                 DateTime.Now.Minute == 15 ||
+                 DateTime.Now.Minute == 30 ||
+                 DateTime.Now.Minute == 45))
             {
                 _lastTime = DateTime.Now.Minute;
                 return true;
             }
+
             return false;
         }
+
         private float CalculateDifferenceAndConvert(int total)
         {
             float consumed = total - _lastReading;
@@ -152,14 +167,16 @@ namespace ElectricEye.Services
                     {
                         _pollerUpdates.Clear();
                     }
+
                     await Task.Delay(TimeSpan.FromMinutes(45), stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"{_serviceName} cleaning updates list failed, token {stoppingToken.IsCancellationRequested}", ex.Message);
+                    _logger.LogInformation(ex, "{Service} cleaning updates list failed, token {IsCancellationRequested}", _serviceName, stoppingToken.IsCancellationRequested);
                 }
             }
         }
+
         private async Task<ChargerDTO> GetLatestConsumption()
         {
             var result = await _requestProvider.GetAsync<ChargerDTO>(HttpClientConst.ChargerClientName, GlobalConfig.ChargerUrl!);
